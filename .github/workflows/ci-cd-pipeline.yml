@@ -26,7 +26,7 @@ jobs:
       - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Nécessaire pour SonarQube
 
       - name: 📦 Installer les dépendances
         run: npm install
@@ -34,7 +34,7 @@ jobs:
       - name: 🧪 Exécuter les tests
         run: npm test -- --coverage
 
-      - name: 🔍 Préparation SonarQube
+      - name: 🔍 Configuration SonarQube
         id: sonarqube-setup
         env:
           SONAR_HOST_URL: "http://localhost:9000"
@@ -44,17 +44,6 @@ jobs:
           for i in {1..30}; do
             if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
               echo "✅ SonarQube prêt après $((i*2)) secondes"
-              
-              # Création token si nécessaire
-              if [[ -z "${{ secrets.SONAR_TOKEN }}" ]]; then
-                echo "::warning::Création d'un token temporaire"
-                SONAR_TOKEN=$(curl -sS -u admin:admin -X POST \
-                  "$SONAR_HOST_URL/api/user_tokens/generate" \
-                  -d "name=github-action-$(date +%s)" \
-                  | jq -r '.token')
-                echo "SONAR_TOKEN=$SONAR_TOKEN" >> $GITHUB_ENV
-                echo "::add-mask::$SONAR_TOKEN"
-              fi
               exit 0
             fi
             sleep 2
@@ -65,16 +54,12 @@ jobs:
       - name: 🔎 Analyse SonarQube
         env:
           SONAR_HOST_URL: "http://localhost:9000"
-          SONAR_TOKEN: ${{ env.SONAR_TOKEN || secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || 'admin' }}
         run: |
           # Installation du scanner
           npm install -g sonarqube-scanner
           
-          # Vérification de l'existence des dossiers
-          echo "📂 Structure du projet:"
-          ls -la
-          
-          # Paramètres dynamiques
+          # Paramètres d'analyse avec désactivation des vérifications Git problématiques
           SONAR_PARAMS=(
             "-Dsonar.projectKey=biblio-gatekeeper"
             "-Dsonar.projectName=BiblioGatekeeper"
@@ -82,18 +67,11 @@ jobs:
             "-Dsonar.token=$SONAR_TOKEN"
             "-Dsonar.sources=src"
             "-Dsonar.javascript.lcov.reportPaths=coverage/lcov.info"
+            "-Dsonar.scm.disabled=true"  # Désactive l'analyse SCM
+            "-Dsonar.scm.provider=git"
           )
           
-          # Ajout conditionnel des tests
-          if [ -d "test" ]; then
-            SONAR_PARAMS+=("-Dsonar.tests=test")
-          else
-            echo "::warning::Dossier 'test' non trouvé - analyse sans tests"
-          fi
-          
           # Exécution de l'analyse
-          echo "🔧 Paramètres d'analyse:"
-          echo "${SONAR_PARAMS[@]}"
           sonar-scanner "${SONAR_PARAMS[@]}"
 
       - name: 🐳 Build Docker Image
