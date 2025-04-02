@@ -2,12 +2,8 @@
 # CONFIGURATION DE BASE
 #######################################################################
 
-# Nom du pipeline (affiché dans l'interface GitHub Actions)
 name: CI/CD Pipeline
 
-# Déclencheurs d'exécution :
-# - À chaque push sur la branche main
-# - À chaque pull request visant la branche main
 on:
   push:
     branches: [main]
@@ -19,86 +15,97 @@ on:
 #######################################################################
 jobs:
   build:
-    # Environnement d'exécution
-    runs-on: ubuntu-latest  # Machine virtuelle Ubuntu
-    timeout-minutes: 30     # Timeout global après 30 minutes
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
     ###################################################################
-    # SERVICE SONARQUBE INTÉGRÉ
+    # SERVICE SONARQUBE INTÉGRÉ (VERSION CORRIGÉE)
     ###################################################################
     services:
       sonarqube:
-        image: sonarqube:community  # Version Community officielle
-        ports: [9000:9000]         # Exposition du port 9000
+        image: sonarqube:community
+        ports: [9000:9000]
         env:
-          # Désactive les vérifications ElasticSearch (utile pour CI)
-          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"  
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
         options: >-
-          --health-interval 30s     # Vérification santé toutes les 30s
-          --health-timeout 10s      # Timeout des vérifications santé
-          --health-retries 5        # Nombre de tentatives
-          --memory 4g               # Mémoire allouée
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
+          --memory 4g
 
     ###################################################################
     # ÉTAPES DU PIPELINE
     ###################################################################
     steps:
       # ---------------------------------------------------------------
-      # ÉTAPE 1 : RÉCUPÉRATION DU CODE SOURCE
+      # ÉTAPE 1 : RÉCUPÉRATION DU CODE
       # ---------------------------------------------------------------
       - name: 🛎️ Checkout Code
-        uses: actions/checkout@v4    # Action officielle GitHub
+        uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Nécessaire pour l'analyse SonarQube complète
+          fetch-depth: 0
 
       # ---------------------------------------------------------------
       # ÉTAPE 2 : INSTALLATION DES DÉPENDANCES
       # ---------------------------------------------------------------
       - name: 📦 Install Dependencies
-        run: npm install  # Installe toutes les dépendances package.json
+        run: npm install
 
       # ---------------------------------------------------------------
-      # ÉTAPE 3 : EXÉCUTION DES TESTS AVEC COUVERTURE
+      # ÉTAPE 3 : TESTS AVEC COUVERTURE
       # ---------------------------------------------------------------
       - name: 🧪 Run Tests with Coverage
-        run: npm test -- --coverage  # Génère le rapport dans coverage/
+        run: npm test -- --coverage
 
       # ---------------------------------------------------------------
-      # ÉTAPE 4 : ANALYSE DE QUALITÉ AVEC SONARQUBE
+      # ÉTAPE 4 : ANALYSE SONARQUBE (VERSION OPTIMISÉE)
       # ---------------------------------------------------------------
       - name: 🔍 SonarQube Analysis
         env:
-          # Utilise le token secret ou 'admin' par défaut (pour tests locaux)
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || 'admin' }}
-          SONAR_HOST_URL: "http://localhost:9000"  # URL du service intégré
+          SONAR_HOST_URL: "http://sonarqube:9000"  # Note: utilisation du nom du service
         run: |
-          # Attente que SonarQube soit opérationnel
-          until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
+          # Attente que SonarQube soit prêt (version améliorée)
+          for i in {1..12}; do
+            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+              echo "SonarQube prêt après $((i*5)) secondes"
+              break
+            fi
             sleep 5
+            if [ $i -eq 12 ]; then
+              echo "::error::SonarQube n'a pas démarré dans le délai imparti"
+              exit 1
+            fi
           done
-          
-          # Lancement de l'analyse avec le scanner SonarQube
-          npx sonarqube-scanner \
-            -Dsonar.projectKey=biblio-gatekeeper \  # Clé unique du projet
-            -Dsonar.sources=src \                   # Dossier source à analyser
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info  # Rapport de couverture
+
+          # Installation du scanner si absent
+          if ! command -v sonar-scanner &> /dev/null; then
+            npm install -g sonarqube-scanner
+          fi
+
+          # Analyse avec paramètres optimisés
+          sonar-scanner \
+            -Dsonar.projectKey=biblio-gatekeeper \
+            -Dsonar.projectName=BiblioGatekeeper \
+            -Dsonar.sources=src \
+            -Dsonar.tests=test \
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+            -Dsonar.login=$SONAR_TOKEN
 
       # ---------------------------------------------------------------
-      # ÉTAPE 5 : CONSTRUCTION DE L'IMAGE DOCKER
+      # ÉTAPE 5 : BUILD DOCKER
       # ---------------------------------------------------------------
       - name: 🐳 Build Docker Image
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
 
       # ---------------------------------------------------------------
-      # ÉTAPE 6 : ENVOI DE L'IMAGE SUR DOCKER HUB (SÉCURISÉ)
+      # ÉTAPE 6 : PUSH DOCKER HUB
       # ---------------------------------------------------------------
       - name: ⬆️ Push Docker Image
         env:
-          # Utilisation de secrets GitHub pour les identifiants
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
         run: |
-          # Connexion sécurisée sans affichage du mot de passe
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
@@ -107,45 +114,38 @@ jobs:
       # ---------------------------------------------------------------
       - name: 🚀 Deploy to Kubernetes
         env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}  # Configuration kubeconfig
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
-          # Création du fichier de configuration temporaire
           echo "$KUBE_CONFIG" > kubeconfig.yaml
           export KUBECONFIG=kubeconfig.yaml
-          
-          # Application des configurations Kubernetes
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
       # ---------------------------------------------------------------
-      # ÉTAPE 8 : VÉRIFICATION DE L'ÉTAT DES PODS
+      # ÉTAPE 8 : VÉRIFICATION PODS
       # ---------------------------------------------------------------
       - name: ✅ Check Pod Status
         run: |
-          # Attente que les pods soient prêts (timeout 90s)
           kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=90s
-          # Affichage de l'état des pods
           kubectl get pods
 
       # ---------------------------------------------------------------
-      # ÉTAPE 9 : NOTIFICATION DE SUCCÈS
+      # ÉTAPE 9 : NOTIFICATION
       # ---------------------------------------------------------------
       - name: 📨 Send Notification
-        if: success()  # S'exécute seulement si tout est réussi
+        if: success()
         run: |
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
             -d "message=Deployment successful ✅ - SonarQube report: http://localhost:9000/dashboard?id=biblio-gatekeeper"
 
       # ---------------------------------------------------------------
-      # ÉTAPE 10 : ROLLBACK AUTOMATIQUE EN CAS D'ÉCHEC
+      # ÉTAPE 10 : ROLLBACK
       # ---------------------------------------------------------------
       - name: 🔄 Rollback on Failure
-        if: failure()  # S'exécute seulement en cas d'échec
+        if: failure()
         run: |
-          # Annulation du déploiement
           kubectl rollout undo deployment/biblio-gatekeeper
-          # Notification d'échec
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
             -d "message=Deployment failed ❌ - Rollback initiated"
