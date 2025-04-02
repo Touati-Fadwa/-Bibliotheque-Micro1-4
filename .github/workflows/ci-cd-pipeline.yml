@@ -1,8 +1,4 @@
-#######################################################################
-# CONFIGURATION DE BASE
-#######################################################################
-
-name: CI/CD Pipeline
+name: CI/CD Pipeline avec SonarQube
 
 on:
   push:
@@ -10,98 +6,73 @@ on:
   pull_request:
     branches: [main]
 
-#######################################################################
-# DÉFINITION DU JOB PRINCIPAL
-#######################################################################
 jobs:
-  build:
+  quality-assurance:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45  # Augmenté pour laisser le temps à SonarQube de démarrer
 
-    ###################################################################
-    # SERVICE SONARQUBE INTÉGRÉ (VERSION CORRIGÉE)
-    ###################################################################
     services:
       sonarqube:
         image: sonarqube:community
         ports: [9000:9000]
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-        options: >-
-          --health-interval 30s
-          --health-timeout 10s
-          --health-retries 5
-          --memory 4g
+        options: --memory 4g --cpus 2
 
-    ###################################################################
-    # ÉTAPES DU PIPELINE
-    ###################################################################
     steps:
-      # ---------------------------------------------------------------
-      # ÉTAPE 1 : RÉCUPÉRATION DU CODE
-      # ---------------------------------------------------------------
-      - name: 🛎️ Checkout Code
+      # Étape 1: Checkout du code
+      - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 2 : INSTALLATION DES DÉPENDANCES
-      # ---------------------------------------------------------------
-      - name: 📦 Install Dependencies
+      # Étape 2: Installation des dépendances
+      - name: 📦 Installer les dépendances
         run: npm install
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 3 : TESTS AVEC COUVERTURE
-      # ---------------------------------------------------------------
-      - name: 🧪 Run Tests with Coverage
+      # Étape 3: Exécution des tests avec couverture
+      - name: 🧪 Exécuter les tests
         run: npm test -- --coverage
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 4 : ANALYSE SONARQUBE (VERSION OPTIMISÉE)
-      # ---------------------------------------------------------------
-      - name: 🔍 SonarQube Analysis
+      # Étape 4: Configuration et analyse SonarQube
+      - name: 🔍 Analyse SonarQube
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || 'admin' }}
-          SONAR_HOST_URL: "http://sonarqube:9000"  # Note: utilisation du nom du service
+          SONAR_HOST_URL: "http://sonarqube:9000"
         run: |
-          # Attente que SonarQube soit prêt (version améliorée)
-          for i in {1..12}; do
+          # Attente intelligente du démarrage de SonarQube
+          echo "En attente du démarrage de SonarQube..."
+          for i in {1..18}; do
             if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
               echo "SonarQube prêt après $((i*5)) secondes"
               break
             fi
             sleep 5
-            if [ $i -eq 12 ]; then
-              echo "::error::SonarQube n'a pas démarré dans le délai imparti"
+            if [ $i -eq 18 ]; then
+              echo "::error::Échec du démarrage de SonarQube après 90 secondes"
               exit 1
             fi
           done
 
-          # Installation du scanner si absent
+          # Installation du scanner si nécessaire
           if ! command -v sonar-scanner &> /dev/null; then
             npm install -g sonarqube-scanner
           fi
 
-          # Analyse avec paramètres optimisés
+          # Analyse du code
           sonar-scanner \
             -Dsonar.projectKey=biblio-gatekeeper \
             -Dsonar.projectName=BiblioGatekeeper \
             -Dsonar.sources=src \
             -Dsonar.tests=test \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
-            -Dsonar.login=$SONAR_TOKEN
+            -Dsonar.login=admin
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 5 : BUILD DOCKER
-      # ---------------------------------------------------------------
-      - name: 🐳 Build Docker Image
+      # Étape 5: Build Docker
+      - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 6 : PUSH DOCKER HUB
-      # ---------------------------------------------------------------
-      - name: ⬆️ Push Docker Image
+      # Étape 6: Push vers Docker Hub
+      - name: ⬆️ Pousser l'image Docker
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -109,10 +80,8 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 7 : DÉPLOIEMENT KUBERNETES
-      # ---------------------------------------------------------------
-      - name: 🚀 Deploy to Kubernetes
+      # Étape 7: Déploiement Kubernetes
+      - name: 🚀 Déployer sur Kubernetes
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
@@ -121,31 +90,25 @@ jobs:
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 8 : VÉRIFICATION PODS
-      # ---------------------------------------------------------------
-      - name: ✅ Check Pod Status
+      # Étape 8: Vérification des pods
+      - name: ✅ Vérifier l'état des pods
         run: |
-          kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=90s
-          kubectl get pods
+          kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=120s
+          kubectl get pods -o wide
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 9 : NOTIFICATION
-      # ---------------------------------------------------------------
-      - name: 📨 Send Notification
+      # Étape 9: Notification
+      - name: 📨 Envoyer une notification
         if: success()
         run: |
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
-            -d "message=Deployment successful ✅ - SonarQube report: http://localhost:9000/dashboard?id=biblio-gatekeeper"
+            -d "message=Déploiement réussi ✅ - Rapport SonarQube: http://sonarqube:9000/dashboard?id=biblio-gatekeeper"
 
-      # ---------------------------------------------------------------
-      # ÉTAPE 10 : ROLLBACK
-      # ---------------------------------------------------------------
-      - name: 🔄 Rollback on Failure
+      # Étape 10: Rollback automatique
+      - name: 🔄 Rollback en cas d'échec
         if: failure()
         run: |
           kubectl rollout undo deployment/biblio-gatekeeper
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
-            -d "message=Deployment failed ❌ - Rollback initiated"
+            -d "message=Échec du déploiement ❌ - Rollback initié"
