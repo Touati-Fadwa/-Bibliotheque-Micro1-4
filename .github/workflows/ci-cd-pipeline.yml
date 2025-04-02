@@ -9,7 +9,7 @@ on:
 jobs:
   quality-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 45  # Temps augmenté pour SonarQube
+    timeout-minutes: 45
 
     services:
       sonarqube:
@@ -17,6 +17,7 @@ jobs:
         ports: [9000:9000]
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+          SONAR_FORCEAUTHENTICATION: "false"  # Désactive l'authentification obligatoire
         options: --memory 4g --cpus 2
 
     steps:
@@ -24,20 +25,20 @@ jobs:
       - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0  # Nécessaire pour SonarQube
+          fetch-depth: 0
 
       # Étape 2: Installation des dépendances
       - name: 📦 Installer les dépendances
         run: npm install
 
-      # Étape 3: Exécution des tests avec couverture
+      # Étape 3: Exécution des tests
       - name: 🧪 Exécuter les tests
         run: npm test -- --coverage
 
       # Étape 4: Analyse SonarQube (version corrigée)
       - name: 🔍 Analyse SonarQube
         env:
-          SONAR_HOST_URL: "http://localhost:9000"  # Correction ici
+          SONAR_HOST_URL: "http://localhost:9000"
         run: |
           # Vérification améliorée du démarrage
           echo "Vérification du démarrage de SonarQube..."
@@ -50,15 +51,21 @@ jobs:
             sleep 3
             if [ $i -eq 30 ]; then
               echo "::error::SonarQube non démarré après 90s"
-              echo "::group::Logs SonarQube"
               docker logs $(docker ps -aqf "name=sonarqube")
-              echo "::endgroup::"
               exit 1
             fi
           done
 
           # Installation garantie du scanner
           npm install -g sonarqube-scanner
+
+          # Génération automatique du token si nécessaire
+          if [[ -z "${{ secrets.SONAR_TOKEN }}" ]]; then
+            echo "::warning::Utilisation du compte admin par défaut"
+            SONAR_AUTH="-Dsonar.login=admin -Dsonar.password=admin"
+          else
+            SONAR_AUTH="-Dsonar.token=${{ secrets.SONAR_TOKEN }}"
+          fi
 
           # Analyse avec paramètres complets
           sonar-scanner \
@@ -67,14 +74,14 @@ jobs:
             -Dsonar.sources=src \
             -Dsonar.tests=test \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
-            -Dsonar.login=admin \
-            -Dsonar.host.url=$SONAR_HOST_URL
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            $SONAR_AUTH
 
-      # Étape 5: Construction de l'image Docker
+      # Étape 5: Construction Docker
       - name: 🐳 Build Docker Image
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
 
-      # Étape 6: Push vers Docker Hub
+      # Étape 6: Push Docker Hub
       - name: ⬆️ Push Docker Image
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
