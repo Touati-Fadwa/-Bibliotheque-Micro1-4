@@ -9,7 +9,7 @@ on:
 jobs:
   quality-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60  # Temps augmenté pour SonarQube
 
     services:
       sonarqube:
@@ -17,57 +17,71 @@ jobs:
         ports: [9000:9000]
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-          SONAR_FORCEAUTHENTICATION: "false"  # Désactive l'authentification obligatoire
-        options: --memory 4g --cpus 2
+          SONAR_FORCE_AUTHENTICATION: "false"  # Désactive l'authentification obligatoire
+        options: >-
+          --memory 4g
+          --cpus 2
+          --health-cmd "curl -sSf http://localhost:9000 || exit 1"
+          --health-interval 30s
+          --health-timeout 10s
+          --health-retries 5
 
     steps:
       # Étape 1: Récupération du code
       - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 0  # Nécessaire pour SonarQube
 
       # Étape 2: Installation des dépendances
       - name: 📦 Installer les dépendances
         run: npm install
 
-      # Étape 3: Exécution des tests
+      # Étape 3: Exécution des tests avec couverture
       - name: 🧪 Exécuter les tests
         run: npm test -- --coverage
 
-      # Étape 4: Analyse SonarQube (version corrigée)
-      - name: 🔍 Analyse SonarQube
+      # Étape 4: Configuration SonarQube
+      - name: ⚙️ Configurer SonarQube
+        id: sonarqube-setup
         env:
           SONAR_HOST_URL: "http://localhost:9000"
         run: |
-          # Vérification améliorée du démarrage
-          echo "Vérification du démarrage de SonarQube..."
+          # Attente optimisée du démarrage
+          echo "⏳ Attente du démarrage de SonarQube..."
           for i in {1..30}; do
-            if nc -z localhost 9000 && \
-               curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
-              echo "SonarQube prêt après $((i*3)) secondes"
-              break
+            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+              echo "✅ SonarQube prêt après $((i*2)) secondes"
+              
+              # Création d'un token temporaire si aucun n'est configuré
+              if [[ -z "${{ secrets.SONAR_TOKEN }}" ]]; then
+                echo "ℹ️ Création d'un token temporaire"
+                SONAR_TOKEN=$(curl -sS -u admin:admin -X POST \
+                  "$SONAR_HOST_URL/api/user_tokens/generate" \
+                  -d "name=github-action-$(date +%s)" \
+                  | jq -r '.token')
+                echo "SONAR_TOKEN=$SONAR_TOKEN" >> $GITHUB_ENV
+                echo "::add-mask::$SONAR_TOKEN"  # Masque le token dans les logs
+              fi
+              exit 0
             fi
-            sleep 3
-            if [ $i -eq 30 ]; then
-              echo "::error::SonarQube non démarré après 90s"
-              docker logs $(docker ps -aqf "name=sonarqube")
-              exit 1
-            fi
+            sleep 2
           done
+          echo "::error::❌ Échec du démarrage de SonarQube après 60s"
+          docker logs $(docker ps -aqf "name=sonarqube")
+          exit 1
 
+      # Étape 5: Analyse SonarQube
+      - name: 🔍 Analyser avec SonarQube
+        env:
+          SONAR_HOST_URL: "http://localhost:9000"
+          SONAR_TOKEN: ${{ env.SONAR_TOKEN || secrets.SONAR_TOKEN || 'admin' }}
+        run: |
           # Installation garantie du scanner
           npm install -g sonarqube-scanner
-
-          # Génération automatique du token si nécessaire
-          if [[ -z "${{ secrets.SONAR_TOKEN }}" ]]; then
-            echo "::warning::Utilisation du compte admin par défaut"
-            SONAR_AUTH="-Dsonar.login=admin -Dsonar.password=admin"
-          else
-            SONAR_AUTH="-Dsonar.token=${{ secrets.SONAR_TOKEN }}"
-          fi
-
-          # Analyse avec paramètres complets
+          
+          # Analyse avec fallback d'authentification
+          echo "🔧 Début de l'analyse SonarQube..."
           sonar-scanner \
             -Dsonar.projectKey=biblio-gatekeeper \
             -Dsonar.projectName=BiblioGatekeeper \
@@ -75,14 +89,20 @@ jobs:
             -Dsonar.tests=test \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
             -Dsonar.host.url=$SONAR_HOST_URL \
-            $SONAR_AUTH
+            -Dsonar.token=$SONAR_TOKEN || \
+          (echo "⚠️ Tentative alternative avec authentification basique..." && \
+           sonar-scanner \
+            -Dsonar.projectKey=biblio-gatekeeper \
+            -Dsonar.login=admin \
+            -Dsonar.password=admin \
+            -Dsonar.host.url=$SONAR_HOST_URL)
 
-      # Étape 5: Construction Docker
-      - name: 🐳 Build Docker Image
+      # Étape 6: Construction de l'image Docker
+      - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
 
-      # Étape 6: Push Docker Hub
-      - name: ⬆️ Push Docker Image
+      # Étape 7: Push vers Docker Hub
+      - name: ⬆️ Pousser l'image Docker
         env:
           DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
           DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
@@ -90,8 +110,8 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      # Étape 7: Déploiement Kubernetes
-      - name: 🚀 Deploy to Kubernetes
+      # Étape 8: Déploiement Kubernetes
+      - name: 🚀 Déployer sur Kubernetes
         env:
           KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
         run: |
@@ -100,25 +120,33 @@ jobs:
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      # Étape 8: Vérification des pods
-      - name: ✅ Check Pod Status
+      # Étape 9: Vérification des pods
+      - name: ✅ Vérifier l'état des pods
         run: |
           kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=120s
           kubectl get pods -o wide
+          echo "Résumé des déploiements:"
+          kubectl get deployments -o wide
+          echo "Résumé des services:"
+          kubectl get services -o wide
 
-      # Étape 9: Notification
-      - name: 📨 Send Notification
+      # Étape 10: Notification de succès
+      - name: 📨 Envoyer une notification
         if: success()
         run: |
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
-            -d "message=Déploiement réussi ✅ - Rapport SonarQube: http://localhost:9000/dashboard?id=biblio-gatekeeper"
+            -d "message=Déploiement réussi ✅
+            - Rapport SonarQube: http://localhost:9000/dashboard?id=biblio-gatekeeper
+            - Détails pods: $(kubectl get pods -l app=biblio-gatekeeper -o jsonpath='{.items[*].status.phase}')"
 
-      # Étape 10: Rollback automatique
-      - name: 🔄 Rollback on Failure
+      # Étape 11: Rollback automatique
+      - name: 🔄 Rollback en cas d'échec
         if: failure()
         run: |
           kubectl rollout undo deployment/biblio-gatekeeper
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
-            -d "message=Échec du déploiement ❌ - Rollback initié"
+            -d "message=Échec du déploiement ❌
+            - Rollback initié
+            - Logs: https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}"
