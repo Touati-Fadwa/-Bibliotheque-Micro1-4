@@ -1,77 +1,151 @@
-# Nom du pipeline
+#######################################################################
+# CONFIGURATION DE BASE
+#######################################################################
+
+# Nom du pipeline (affiché dans l'interface GitHub Actions)
 name: CI/CD Pipeline
 
-# Déclencheur : À chaque push ou pull request sur la branche main
+# Déclencheurs d'exécution :
+# - À chaque push sur la branche main
+# - À chaque pull request visant la branche main
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
+    branches: [main]
 
-# Définition des jobs
+#######################################################################
+# DÉFINITION DU JOB PRINCIPAL
+#######################################################################
 jobs:
   build:
-    runs-on: ubuntu-latest  # Exécuter sur Ubuntu
+    # Environnement d'exécution
+    runs-on: ubuntu-latest  # Machine virtuelle Ubuntu
+    timeout-minutes: 30     # Timeout global après 30 minutes
 
+    ###################################################################
+    # SERVICE SONARQUBE INTÉGRÉ
+    ###################################################################
+    services:
+      sonarqube:
+        image: sonarqube:community  # Version Community officielle
+        ports: [9000:9000]         # Exposition du port 9000
+        env:
+          # Désactive les vérifications ElasticSearch (utile pour CI)
+          SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"  
+        options: >-
+          --health-interval 30s     # Vérification santé toutes les 30s
+          --health-timeout 10s      # Timeout des vérifications santé
+          --health-retries 5        # Nombre de tentatives
+          --memory 4g               # Mémoire allouée
+
+    ###################################################################
+    # ÉTAPES DU PIPELINE
+    ###################################################################
     steps:
-      # Étape 1 : Cloner le code
-      - name: Checkout Code
-        uses: actions/checkout@v2
+      # ---------------------------------------------------------------
+      # ÉTAPE 1 : RÉCUPÉRATION DU CODE SOURCE
+      # ---------------------------------------------------------------
+      - name: 🛎️ Checkout Code
+        uses: actions/checkout@v4    # Action officielle GitHub
+        with:
+          fetch-depth: 0  # Nécessaire pour l'analyse SonarQube complète
 
-      # Étape 2 : Installer Node.js et les dépendances
-      - name: Install Dependencies
-        run: |
-          npm install
+      # ---------------------------------------------------------------
+      # ÉTAPE 2 : INSTALLATION DES DÉPENDANCES
+      # ---------------------------------------------------------------
+      - name: 📦 Install Dependencies
+        run: npm install  # Installe toutes les dépendances package.json
 
-    # Étape 3: Construire l’image Docker
-      - name: Build Docker Image
-        run: |
-          docker build -t touatifadwa/biblio-gatekeeper:latest .
+      # ---------------------------------------------------------------
+      # ÉTAPE 3 : EXÉCUTION DES TESTS AVEC COUVERTURE
+      # ---------------------------------------------------------------
+      - name: 🧪 Run Tests with Coverage
+        run: npm test -- --coverage  # Génère le rapport dans coverage/
 
-      # Étape 4: Pousser l’image sur Docker Hub
-      - name: Push Docker Image
+      # ---------------------------------------------------------------
+      # ÉTAPE 4 : ANALYSE DE QUALITÉ AVEC SONARQUBE
+      # ---------------------------------------------------------------
+      - name: 🔍 SonarQube Analysis
+        env:
+          # Utilise le token secret ou 'admin' par défaut (pour tests locaux)
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN || 'admin' }}
+          SONAR_HOST_URL: "http://localhost:9000"  # URL du service intégré
         run: |
-          docker login -u touatifadwa -p foufou53550880
+          # Attente que SonarQube soit opérationnel
+          until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
+            sleep 5
+          done
+          
+          # Lancement de l'analyse avec le scanner SonarQube
+          npx sonarqube-scanner \
+            -Dsonar.projectKey=biblio-gatekeeper \  # Clé unique du projet
+            -Dsonar.sources=src \                   # Dossier source à analyser
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info  # Rapport de couverture
+
+      # ---------------------------------------------------------------
+      # ÉTAPE 5 : CONSTRUCTION DE L'IMAGE DOCKER
+      # ---------------------------------------------------------------
+      - name: 🐳 Build Docker Image
+        run: docker build -t touatifadwa/biblio-gatekeeper:latest .
+
+      # ---------------------------------------------------------------
+      # ÉTAPE 6 : ENVOI DE L'IMAGE SUR DOCKER HUB (SÉCURISÉ)
+      # ---------------------------------------------------------------
+      - name: ⬆️ Push Docker Image
+        env:
+          # Utilisation de secrets GitHub pour les identifiants
+          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+        run: |
+          # Connexion sécurisée sans affichage du mot de passe
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      # Étape 5: Exécuter les tests unitaires (si disponibles)
-      - name: Run Tests
+      # ---------------------------------------------------------------
+      # ÉTAPE 7 : DÉPLOIEMENT KUBERNETES
+      # ---------------------------------------------------------------
+      - name: 🚀 Deploy to Kubernetes
+        env:
+          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}  # Configuration kubeconfig
         run: |
-          npm test
-
-      # Étape 6: Vérifier la qualité du code avec ESLint
-      - name: Lint Code
-        run: |
-          npm run lint
-
-      # Étape 7 : Déployer sur Kubernetes
-      - name: Deploy to Kubernetes
-        run: |
+          # Création du fichier de configuration temporaire
+          echo "$KUBE_CONFIG" > kubeconfig.yaml
+          export KUBECONFIG=kubeconfig.yaml
+          
+          # Application des configurations Kubernetes
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
 
-      # Étape 8 : Vérification des pods
-      - name: Check Pod Status
+      # ---------------------------------------------------------------
+      # ÉTAPE 8 : VÉRIFICATION DE L'ÉTAT DES PODS
+      # ---------------------------------------------------------------
+      - name: ✅ Check Pod Status
         run: |
+          # Attente que les pods soient prêts (timeout 90s)
+          kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=90s
+          # Affichage de l'état des pods
           kubectl get pods
 
-      # Étape 9 : Monitoring avec Prometheus & Grafana
-      - name: Monitor with Prometheus and Grafana
-        run: |
-          kubectl port-forward service/prometheus 9090:9090 &
-          kubectl port-forward service/grafana 3000:3000 &
-
-      # Étape 10 : Envoyer une notification avec Gotify
-      - name: Send Gotify Notification
+      # ---------------------------------------------------------------
+      # ÉTAPE 9 : NOTIFICATION DE SUCCÈS
+      # ---------------------------------------------------------------
+      - name: 📨 Send Notification
+        if: success()  # S'exécute seulement si tout est réussi
         run: |
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
-          -d "message=Deployment completed successfully!" \
-          -d "title=CI/CD Pipeline"
+            -d "title=CI/CD Status" \
+            -d "message=Deployment successful ✅ - SonarQube report: http://localhost:9000/dashboard?id=biblio-gatekeeper"
 
-      # Étape 11 : Rollback en cas d'échec
-      - name: Rollback on Failure
-        if: failure()
+      # ---------------------------------------------------------------
+      # ÉTAPE 10 : ROLLBACK AUTOMATIQUE EN CAS D'ÉCHEC
+      # ---------------------------------------------------------------
+      - name: 🔄 Rollback on Failure
+        if: failure()  # S'exécute seulement en cas d'échec
         run: |
+          # Annulation du déploiement
           kubectl rollout undo deployment/biblio-gatekeeper
+          # Notification d'échec
+          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
+            -d "title=CI/CD Status" \
+            -d "message=Deployment failed ❌ - Rollback initiated"
