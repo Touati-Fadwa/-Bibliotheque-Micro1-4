@@ -36,17 +36,27 @@ jobs:
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
 
+      # Étape 4: Configuration SonarQube
       - name: ⚙️ Configurer SonarQube
+        id: sonarqube-setup
+        env:
+          SONAR_HOST_URL: "http://localhost:9000"
         run: |
-          echo "⏳ Vérification de SonarQube..."
-          until curl -sSf "$SONAR_HOST_URL/api/system/health" | grep -q '"health":"GREEN"'; do
-            sleep 5
+          # Attente optimisée du démarrage
+          echo "⏳ Attente du démarrage de SonarQube..."
+          for i in {1..30}; do
+            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+              echo "✅ SonarQube prêt après $((i*2)) secondes"
+              
+              # Désactivation complète de l'authentification si nécessaire
+              curl -sS -u admin:admin -X POST \
+                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
+              exit 0
+            fi
+            sleep 2
           done
-          echo "✅ SonarQube opérationnel"
-
-          # Configuration des permissions
-          curl -u admin:admin -X POST \
-            "$SONAR_HOST_URL/api/permissions/add_group?groupName=Anyone&permission=scan"
+          echo "::error::Échec du démarrage de SonarQube"
+          exit 1
 
       - name: 🔍 Analyser avec SonarQube
         env:
