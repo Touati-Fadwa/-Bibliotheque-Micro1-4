@@ -42,69 +42,49 @@ jobs:
       - name: ⚙️ Configurer SonarQube
         id: sonarqube-setup
         env:
-          SONAR_HOST_URL: "http://localhost:9000"
-          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
+            SONAR_HOST_URL: "http://localhost:9000"
+            SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
         run: |
-          echo "⏳ Attente du démarrage de SonarQube..."
-          for i in {1..30}; do
-            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
-              echo "✅ SonarQube prêt après $((i*2)) secondes"
-              
-              # Activer temporairement l'authentification
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
-              
-              # Créer le projet s'il n'existe pas
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/projects/create" \
-                -d "project=BIBLIO_MAIN" \
-                -d "name=Bibliotheque" \
-                -d "visibility=public" || echo "Le projet existe peut-être déjà"
-              
-              # Configurer les permissions
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/permissions/add_group" \
-                -d "groupName=Anyone" \
-                -d "permission=scan"
-              
-              # Créer un token d'analyse
-              TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/user_tokens/generate" \
-                -d "name=CI_TOKEN_$(date +%s)" \
-                -d "type=PROJECT_ANALYSIS_TOKEN")
-              
-              echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
-              
-              # Désactiver l'authentification pour l'analyse
-              curl -u admin:"$SONADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
-              
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Échec du démarrage de SonarQube"
-          exit 1
-
+            echo "⏳ Attente du démarrage de SonarQube..."
+            until curl -sSf "$SONAR_HOST_URL/api/system/health" | grep -q '"health":"GREEN"'; do
+              echo "En attente du démarrage complet de SonarQube..."
+              sleep 5
+            done
+            echo "✅ SonarQube complètement opérationnel"
+  
+            # Configurer les permissions sans authentification
+            curl -X POST \
+              "$SONAR_HOST_URL/api/permissions/add_group" \
+              -H "Content-Type: application/x-www-form-urlencoded" \
+              -d "groupName=Anyone" \
+              -d "permission=scan"
+  
+            # Créer le projet si nécessaire (avec authentification temporaire)
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/projects/create" \
+              -d "project=BIBLIO_MAIN" \
+              -d "name=Bibliotheque" \
+              -d "visibility=public" || echo "Le projet existe peut-être déjà"
+  
       - name: 🔍 Analyser avec SonarQube
         env:
-          SONAR_HOST_URL: "http://localhost:9000"
+           SONAR_HOST_URL: "http://localhost:9000"
         run: |
-          npm install -g sonarqube-scanner
-          
-          sonar-scanner \
-            -Dsonar.projectKey="BIBLIO_MAIN" \
-            -Dsonar.projectName="Bibliotheque" \
-            -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.token="$SONAR_TOKEN" \
-            -Dsonar.sources=src \
-            -Dsonar.tests=tests \
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
-            -Dsonar.sourceEncoding=UTF-8 \
-            -Dsonar.working.directory=.scannerwork \
-            -Dsonar.scm.disabled=true
-
-          echo "Rapport disponible à : $SONAR_HOST_URL/dashboard?id=BIBLIO_MAIN"
+            npm install -g sonarqube-scanner
+  
+            sonar-scanner \
+              -Dsonar.projectKey="BIBLIO_MAIN" \
+              -Dsonar.projectName="Bibliotheque" \
+              -Dsonar.host.url="$SONAR_HOST_URL" \
+              -Dsonar.sources=src \
+              -Dsonar.tests=tests \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
+              -Dsonar.sourceEncoding=UTF-8 \
+              -Dsonar.working.directory=.scannerwork \
+              -Dsonar.scm.disabled=true \
+              -Dsonar.verbose=true
+  
+            echo "Rapport SonarQube disponible à: $SONAR_HOST_URL/dashboard?id=BIBLIO_MAIN"
 
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
