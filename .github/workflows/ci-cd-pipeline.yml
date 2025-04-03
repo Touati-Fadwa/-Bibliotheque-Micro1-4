@@ -36,11 +36,11 @@ jobs:
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
 
-      # Étape 4: Configuration SonarQube
       - name: ⚙️ Configurer SonarQube
         id: sonarqube-setup
         env:
           SONAR_HOST_URL: "http://localhost:9000"
+          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
         run: |
           # Attente optimisée du démarrage
           echo "⏳ Attente du démarrage de SonarQube..."
@@ -48,9 +48,27 @@ jobs:
             if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
               echo "✅ SonarQube prêt après $((i*2)) secondes"
               
-              # Désactivation complète de l'authentification si nécessaire
-              curl -sS -u admin:admin -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
+              # Créer le projet s'il n'existe pas
+              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+                "$SONAR_HOST_URL/api/projects/create" \
+                -d "project=BIBLIO_MAIN" \
+                -d "name=Bibliotheque" \
+                -d "visibility=public"
+              
+              # Configurer les permissions
+              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+                "$SONAR_HOST_URL/api/permissions/add_group" \
+                -d "groupName=Anyone" \
+                -d "permission=scan"
+              
+              # Créer un token d'analyse
+              TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+                "$SONAR_HOST_URL/api/user_tokens/generate" \
+                -d "name=CI_TOKEN" \
+                -d "type=PROJECT_ANALYSIS_TOKEN")
+              
+              echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
+              
               exit 0
             fi
             sleep 2
@@ -62,22 +80,18 @@ jobs:
         env:
           SONAR_HOST_URL: "http://localhost:9000"
         run: |
-            npm install -g sonarqube-scanner
-            
-            # Générer un projectKey stable
-            PROJECT_KEY="BIBLIO_$(echo ${GITHUB_REPOSITORY} | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')"
-            echo "ℹ️ ProjectKey: $PROJECT_KEY"
-            
-            sonar-scanner \
-              -Dsonar.projectKey="$PROJECT_KEY" \
-              -Dsonar.projectName="Bibliotheque" \
-              -Dsonar.host.url="$SONAR_HOST_URL" \
-              -Dsonar.login="$SONAR_TOKEN" \
-              -Dsonar.sources=src \
-              -Dsonar.tests=tests \
-              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
-              -Dsonar.sourceEncoding=UTF-8 \
-              -Dsonar.working.directory=.scannerwork 
+          npm install -g sonarqube-scanner
+          
+          sonar-scanner \
+            -Dsonar.projectKey="BIBLIO_MAIN" \
+            -Dsonar.projectName="Bibliotheque" \
+            -Dsonar.host.url="$SONAR_HOST_URL" \
+            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.sources=src \
+            -Dsonar.tests=tests \
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
+            -Dsonar.sourceEncoding=UTF-8 \
+            -Dsonar.working.directory=.scannerwork
 
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
@@ -109,7 +123,7 @@ jobs:
         run: |
           curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
             -d "title=CI/CD Status" \
-            -d "message=Déploiement réussi ✅ - Rapport SonarQube: $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
+            -d "message=Déploiement réussi ✅ - Rapport SonarQube: $SONAR_HOST_URL/dashboard?id=BIBLIO_MAIN"
 
       - name: 🔄 Rollback en cas d'échec
         if: failure()
