@@ -67,17 +67,16 @@ jobs:
         env:
             SONAR_HOST_URL: "http://localhost:9000"
         run: |
-            npm install -g sonarqube-scanner
-            
-            sonar-scanner \
-              -Dsonar.projectKey="BIBLIO_MAIN" \
-              -Dsonar.projectName="Bibliotheque" \
-              -Dsonar.host.url="$SONAR_HOST_URL" \
-              -Dsonar.login="$SONAR_TOKEN" \
-              -Dsonar.sources=src \
-              -Dsonar.tests=tests \
-              -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
-              -Dsonar.sourceEncoding=UTF-8
+                npm install -g sonarqube-scanner --quiet
+                
+                sonar-scanner -q \
+                  -Dsonar.projectKey="BIBLIO_MAIN" \
+                  -Dsonar.projectName="Bibliotheque" \
+                  -Dsonar.host.url="$SONAR_HOST_URL" \
+                  -Dsonar.token="$SONAR_TOKEN" \
+                  -Dsonar.sources=src \
+                  -Dsonar.tests=tests \
+                  -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
 
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
