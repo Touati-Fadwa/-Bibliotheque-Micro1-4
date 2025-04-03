@@ -40,55 +40,49 @@ jobs:
       - name: ⚙️ Configurer SonarQube
         id: sonarqube-setup
         env:
-          SONAR_HOST_URL: "http://localhost:9000"
-          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
+            SONAR_HOST_URL: "http://localhost:9000"
+            SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
         run: |
-          echo "⏳ Attente du démarrage de SonarQube..."
-          for i in {1..30}; do
-            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
-              echo "✅ SonarQube prêt après $((i*2)) secondes"
+            echo "⏳ Attente du démarrage de SonarQube..."
+            until curl -sSf "$SONAR_HOST_URL/api/system/health" | grep -q '"health":"GREEN"'; do
+              sleep 5
+            done
+            echo "✅ SonarQube opérationnel"
+        
+            # Activer temporairement l'authentification
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
+        
+            # Créer le projet
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/projects/create" \
+              -d "project=BIBLIO_MAIN" \
+              -d "name=Bibliotheque" \
+              -d "visibility=public" || echo "Le projet existe peut-être déjà"
+        
+            # Configurer TOUTES les permissions nécessaires
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/permissions/add_group" \
+              -d "groupName=Anyone" \
+              -d "permission=scan"
+        
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/permissions/add_group" \
+              -d "groupName=Anyone" \
+              -d "permission=provisioning"
+        
+            # Créer un token avec les bons droits
+            TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/user_tokens/generate" \
+              -d "name=CI_TOKEN" \
+              -d "type=GLOBAL_ANALYSIS_TOKEN")  # Note: GLOBAL_ANALYSIS_TOKEN au lieu de PROJECT_ANALYSIS_TOKEN
+        
+            echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
+        
+            # Désactiver l'authentification si nécessaire
+            curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+              "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
               
-              # Activer temporairement l'authentification pour la configuration
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
-              
-              # Créer le projet explicitement
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/projects/create" \
-                -d "project=BIBLIO_MAIN" \
-                -d "name=Bibliotheque" \
-                -d "visibility=public" || echo "Le projet existe peut-être déjà"
-              
-              # Configurer TOUTES les permissions nécessaires
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/permissions/add_group" \
-                -d "groupName=Anyone" \
-                -d "permission=scan"
-              
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/permissions/add_group" \
-                -d "groupName=Anyone" \
-                -d "permission=provisioning"
-              
-              # Créer un token dédié
-              TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/user_tokens/generate" \
-                -d "name=CI_TOKEN_$(date +%s)" \
-                -d "type=PROJECT_ANALYSIS_TOKEN")
-              
-              echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
-              
-              # Désactiver l'authentification pour l'analyse
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
-              
-              exit 0
-            fi
-            sleep 2
-          done
-          echo "::error::Échec du démarrage de SonarQube"
-          exit 1
-
       - name: 🔍 Analyser avec SonarQube
         env:
           SONAR_HOST_URL: "http://localhost:9000"
