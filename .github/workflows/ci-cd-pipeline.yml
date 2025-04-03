@@ -79,14 +79,14 @@ jobs:
                   -Dsonar.sources=src \
                   -Dsonar.tests=tests \
                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
-                  
+
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
 
       - name: ⬆️ Pousser l'image Docker
         env:
-          DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-          DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+          DOCKER_USERNAME: touatifadwa  # Remplacez par votre username Docker Hub
+          DOCKER_PASSWORD: foufou53550880  # Remplacez par votre mot de passe/token
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
