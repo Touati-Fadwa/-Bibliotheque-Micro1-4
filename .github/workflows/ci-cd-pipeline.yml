@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  SONAR_HOST_URL: "http://localhost:9000"
+  PROJECT_KEY: "BIBLIO_MAIN"
+
 jobs:
   quality-check:
     runs-on: ubuntu-latest
@@ -21,20 +25,26 @@ jobs:
         options: >-
           --memory 4g
           --cpus 2
+          --health-cmd="curl -f $SONAR_HOST_URL/api/system/health || exit 1"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
 
     steps:
-      - name: 🔧 Installer jq pour le traitement JSON
-        run: sudo apt-get install -y jq
+      - name: 🔧 Installer les dépendances système
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq curl
 
       - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
 
-      - name: 📦 Installer les dépendances
+      - name: 📦 Installer les dépendances Node.js
         run: npm install
 
-      - name: 🧪 Exécuter les tests
+      - name: 🧪 Exécuter les tests avec couverture
         run: |
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
@@ -42,63 +52,55 @@ jobs:
       - name: ⚙️ Configurer SonarQube
         id: sonarqube-setup
         env:
-          SONAR_HOST_URL: "http://localhost:9000"
           SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
         run: |
           echo "⏳ Attente du démarrage de SonarQube..."
-          for i in {1..30}; do
-            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
-              echo "✅ SonarQube prêt après $((i*2)) secondes"
-              
-              # Activer temporairement l'authentification pour la configuration
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
-              
-              # Créer le projet explicitement
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/projects/create" \
-                -d "project=BIBLIO_MAIN" \
-                -d "name=Bibliotheque" \
-                -d "visibility=public" || echo "Le projet existe peut-être déjà"
-              
-              # Configurer TOUTES les permissions nécessaires
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/permissions/add_group" \
-                -d "groupName=Anyone" \
-                -d "permission=scan"
-              
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/permissions/add_group" \
-                -d "groupName=Anyone" \
-                -d "permission=provisioning"
-              
-              # Créer un token dédié
-              TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/user_tokens/generate" \
-                -d "name=CI_TOKEN_$(date +%s)" \
-                -d "type=PROJECT_ANALYSIS_TOKEN")
-              
-              echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
-              
-              # Désactiver l'authentification pour l'analyse
-              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
-              
-              exit 0
-            fi
-            sleep 2
+          until curl -sSf "$SONAR_HOST_URL/api/system/health" | grep -q '"health":"GREEN"'; do
+            echo "En attente du démarrage complet de SonarQube..."
+            sleep 5
           done
-          echo "::error::Échec du démarrage de SonarQube"
-          exit 1
+          echo "✅ SonarQube complètement opérationnel"
+
+          # Activer temporairement l'authentification
+          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
+
+          # Créer le projet explicitement
+          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/projects/create" \
+            -d "project=$PROJECT_KEY" \
+            -d "name=Bibliotheque" \
+            -d "visibility=public" || echo "Le projet existe peut-être déjà"
+
+          # Configurer toutes les permissions nécessaires
+          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/permissions/add_group" \
+            -d "groupName=Anyone" \
+            -d "permission=scan"
+
+          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/permissions/add_group" \
+            -d "groupName=Anyone" \
+            -d "permission=provisioning"
+
+          # Créer un token d'analyse
+          TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/user_tokens/generate" \
+            -d "name=CI_TOKEN_$(date +%s)" \
+            -d "type=PROJECT_ANALYSIS_TOKEN")
+          
+          echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
+
+          # Désactiver l'authentification pour l'analyse
+          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+            "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
 
       - name: 🔍 Analyser avec SonarQube
-        env:
-          SONAR_HOST_URL: "http://localhost:9000"
         run: |
           npm install -g sonarqube-scanner
           
           sonar-scanner \
-            -Dsonar.projectKey="BIBLIO_MAIN" \
+            -Dsonar.projectKey="$PROJECT_KEY" \
             -Dsonar.projectName="Bibliotheque" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
             -Dsonar.token="$SONAR_TOKEN" \
@@ -110,12 +112,13 @@ jobs:
             -Dsonar.scm.disabled=true \
             -Dsonar.verbose=true
 
-          echo "Rapport disponible à : $SONAR_HOST_URL/dashboard?id=BIBLIO_MAIN"
-
-      # ... [le reste de votre pipeline inchangé]
+          echo "Rapport SonarQube disponible à: $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
 
       - name: 🐳 Construire l'image Docker
-        run: docker build -t touatifadwa/biblio-gatekeeper:latest .
+        run: |
+          docker build \
+            -t touatifadwa/biblio-gatekeeper:latest \
+            -t touatifadwa/biblio-gatekeeper:$GITHUB_SHA .
 
       - name: ⬆️ Pousser l'image Docker
         env:
@@ -124,6 +127,7 @@ jobs:
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
+          docker push touatifadwa/biblio-gatekeeper:$GITHUB_SHA
 
       - name: 🚀 Déployer sur Kubernetes
         env:
@@ -131,25 +135,28 @@ jobs:
         run: |
           echo "$KUBE_CONFIG" > kubeconfig.yaml
           export KUBECONFIG=kubeconfig.yaml
+          
           kubectl apply -f k8s/deployment.yaml
           kubectl apply -f k8s/service.yaml
+          
+          # Mise à jour progressive
+          kubectl rollout restart deployment/biblio-gatekeeper
+          kubectl rollout status deployment/biblio-gatekeeper --timeout=120s
 
       - name: ✅ Vérifier l'état des pods
         run: |
-          kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=120s
           kubectl get pods -o wide
+          kubectl get services -o wide
 
-      - name: 📨 Envoyer une notification
+      - name: 📨 Notifier le succès
         if: success()
         run: |
-          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
-            -d "title=CI/CD Status" \
-            -d "message=Déploiement réussi ✅ - Rapport SonarQube: $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
+          echo "CI/CD terminée avec succès!"
+          echo "Rapport SonarQube: $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
+          echo "Image Docker: touatifadwa/biblio-gatekeeper:$GITHUB_SHA"
 
       - name: 🔄 Rollback en cas d'échec
         if: failure()
         run: |
           kubectl rollout undo deployment/biblio-gatekeeper
-          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
-            -d "title=CI/CD Status" \
-            -d "message=Échec du déploiement ❌ - Rollback initié"
+          echo "::error::Échec du déploiement - Rollback effectué"
