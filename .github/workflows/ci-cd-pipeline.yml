@@ -60,28 +60,24 @@ jobs:
 
       - name: 🔍 Analyser avec SonarQube
         env:
-          GITHUB_REPO: ${{ github.repository }}
           SONAR_HOST_URL: "http://localhost:9000"
         run: |
-          npm install -g sonarqube-scanner@latest
-          
-          PROJECT_KEY="${GITHUB_REPO//\//-}-${GITHUB_SHA:0:8}"
-          PROJECT_NAME="${GITHUB_REPO#*/}"
-          
-          sonar-scanner \
-            -Dsonar.projectKey="$PROJECT_KEY" \
-            -Dsonar.projectName="$PROJECT_NAME" \
-            -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.sources=src \
-            -Dsonar.tests=tests \
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
-            -Dsonar.scm.provider=git \
-            -Dsonar.scm.disabled=false \
-            -Dsonar.sourceEncoding=UTF-8 \
-            -Dsonar.working.directory=.scannerwork \
-            -Dsonar.verbose=true
-
-          echo "Rapport disponible à : $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
+            npm install -g sonarqube-scanner
+            
+            # Générer un projectKey stable
+            PROJECT_KEY="BIBLIO_$(echo ${GITHUB_REPOSITORY} | tr '[:lower:]' '[:upper:]' | tr -cd '[:alnum:]_')"
+            echo "ℹ️ ProjectKey: $PROJECT_KEY"
+            
+            sonar-scanner \
+              -Dsonar.projectKey="$PROJECT_KEY" \
+              -Dsonar.projectName="Bibliotheque" \
+              -Dsonar.host.url="$SONAR_HOST_URL" \
+              -Dsonar.login="$SONAR_TOKEN" \
+              -Dsonar.sources=src \
+              -Dsonar.tests=tests \
+              -Dsonar.javascript.lcov.reportPaths=coverage/lcov.info \
+              -Dsonar.sourceEncoding=UTF-8 \
+              -Dsonar.working.directory=.scannerwork 
 
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
