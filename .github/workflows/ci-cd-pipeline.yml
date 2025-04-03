@@ -23,6 +23,9 @@ jobs:
           --cpus 2
 
     steps:
+      - name: 🔧 Installer jq pour le traitement JSON
+        run: sudo apt-get install -y jq
+
       - name: 🛎️ Checkout du code
         uses: actions/checkout@v4
         with:
@@ -31,7 +34,7 @@ jobs:
       - name: 📦 Installer les dépendances
         run: npm install
 
-      - name: 🧪 Exécuter les tests
+      - name: 🧪 Exécuter les tests avec couverture
         run: |
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
@@ -42,18 +45,21 @@ jobs:
           SONAR_HOST_URL: "http://localhost:9000"
           SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
         run: |
-          # Attente optimisée du démarrage
           echo "⏳ Attente du démarrage de SonarQube..."
           for i in {1..30}; do
             if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
               echo "✅ SonarQube prêt après $((i*2)) secondes"
+              
+              # Activer temporairement l'authentification
+              curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
+                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=true"
               
               # Créer le projet s'il n'existe pas
               curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
                 "$SONAR_HOST_URL/api/projects/create" \
                 -d "project=BIBLIO_MAIN" \
                 -d "name=Bibliotheque" \
-                -d "visibility=public"
+                -d "visibility=public" || echo "Le projet existe peut-être déjà"
               
               # Configurer les permissions
               curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
@@ -64,10 +70,14 @@ jobs:
               # Créer un token d'analyse
               TOKEN_RESPONSE=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
                 "$SONAR_HOST_URL/api/user_tokens/generate" \
-                -d "name=CI_TOKEN" \
+                -d "name=CI_TOKEN_$(date +%s)" \
                 -d "type=PROJECT_ANALYSIS_TOKEN")
               
               echo "SONAR_TOKEN=$(echo $TOKEN_RESPONSE | jq -r '.token')" >> $GITHUB_ENV
+              
+              # Désactiver l'authentification pour l'analyse
+              curl -u admin:"$SONADMIN_PASSWORD" -X POST \
+                "$SONAR_HOST_URL/api/settings/set?key=sonar.forceAuthentication&value=false"
               
               exit 0
             fi
@@ -91,7 +101,10 @@ jobs:
             -Dsonar.tests=tests \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
             -Dsonar.sourceEncoding=UTF-8 \
-            -Dsonar.working.directory=.scannerwork
+            -Dsonar.working.directory=.scannerwork \
+            -Dsonar.scm.disabled=true
+
+          echo "Rapport disponible à : $SONAR_HOST_URL/dashboard?id=BIBLIO_MAIN"
 
       - name: 🐳 Construire l'image Docker
         run: docker build -t touatifadwa/biblio-gatekeeper:latest .
