@@ -88,22 +88,36 @@ jobs:
 
       - name: ⬆️ Pousser l'image Docker
         env:
-          DOCKER_USERNAME: touatifadwa  # Remplacez par votre username Docker Hub
-          DOCKER_PASSWORD: foufou53550880  # Remplacez par votre mot de passe/token
+          DOCKER_USERNAME: touatifadwa  
+          DOCKER_PASSWORD: foufou53550880  
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
       - name: 🚀 Configurer et déployer sur k3s
         run: |
-            # Installation et configuration k3s
-            curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
-            until kubectl get nodes; do sleep 2; done
+            # Installer k3s avec configuration automatique
+            curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
             
-            # Appliquer les configurations
+            # Attendre que k3s soit prêt
+            echo "⏳ Attente du démarrage de k3s..."
+            until sudo kubectl cluster-info; do
+              sleep 5
+            done
+            
+            # Configurer l'accès kubectl
+            sudo cp /etc/rancher/k3s/k3s.yaml kubeconfig.yaml
+            sudo chown $USER:$USER kubeconfig.yaml
+            sed -i 's/127.0.0.1/localhost/g' kubeconfig.yaml
+            export KUBECONFIG=$(pwd)/kubeconfig.yaml
+            
+            # Vérifier la connexion
+            kubectl config view
+            kubectl cluster-info
+            
+            # Déployer l'application
             kubectl apply -f k8s/
-            kubectl rollout status deployment/biblio-app --timeout=90s
-            echo "Application déployée avec succès"
+            kubectl rollout status deployment/biblio-app --timeout=120s
 
       - name: ✅ Vérifier l'état des pods
         run: |
