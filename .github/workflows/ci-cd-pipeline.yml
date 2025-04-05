@@ -107,7 +107,7 @@ jobs:
             echo "KUBECONFIG=${PWD}/kubeconfig" >> $GITHUB_ENV
         
       - name: ✅ Vérification rapide
-        run: kubectl get nodes
+        run: sudo kubectl get nodes
         
       - name: 🛠️ Déployer l'application
         run: |
