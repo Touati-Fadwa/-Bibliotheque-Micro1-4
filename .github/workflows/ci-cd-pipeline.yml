@@ -109,21 +109,24 @@ jobs:
       - name: ✅ Vérification rapide
         run: kubectl get nodes
         
-      - name: 🛠️ Déployer l'application (version fiable)
+      - name: 🛠️ Déployer et Diagnostiquer
         run: |
           # 1. Appliquer la configuration
           kubectl apply -f k8s/
           
-          # 2. Vérification robuste en 3 étapes
-          echo "🕒 Attente du démarrage des pods..."
-          sleep 15  # Délai initial court
-          
-          # Vérification avec timeout
-          timeout 60 bash -c 'until kubectl get pods -l app=biblio-gatekeeper 2>/dev/null | grep -q Running; do sleep 5; echo "En attente..."; done'
-          
-          # 3. Vérification finale
-          echo "✅ Pods en cours d'exécution :"
-          kubectl get pods -l app=biblio-gatekeeper -o wide
+          # 2. Tentative de démarrage avec timeout
+          if timeout 120 bash -c 'until kubectl get pods -l app=biblio-gatekeeper 2>/dev/null | grep -q Running; do sleep 5; echo "En attente..."; done'; then
+            echo "✅ Déploiement réussi"
+            kubectl get pods -o wide
+          else
+            echo "⚠️ Échec du déploiement - Diagnostic :"
+            # Debug complet
+            kubectl get events --sort-by=.metadata.creationTimestamp
+            kubectl describe deployment biblio-app
+            kubectl describe pod -l app=biblio-gatekeeper
+            kubectl logs -l app=biblio-gatekeeper --tail=50
+            exit 1
+          fi
             
       - name: ✅ Vérifier l'état des pods
         run: |
