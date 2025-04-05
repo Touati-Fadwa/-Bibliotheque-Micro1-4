@@ -19,7 +19,10 @@ jobs:
         options: >-
           --memory 4g
           --cpus 2
-
+      k3s:
+        image: rancher/k3s:latest
+        ports:
+          - 6443:6443
     steps:
       - name: 🔧 Installer jq pour le traitement JSON
         run: sudo apt-get install -y jq
@@ -91,14 +94,15 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      - name: 🚀 Déployer sur Kubernetes
-        env:
-          KUBE_CONFIG: ${{ secrets.KUBE_CONFIG }}
+      - name: 🚀 Déployer sur k3s
         run: |
-          echo "$KUBE_CONFIG" > kubeconfig.yaml
-          export KUBECONFIG=kubeconfig.yaml
-          kubectl apply -f k8s/deployment.yaml
-          kubectl apply -f k8s/service.yaml
+            # Configuration auto k3s
+            sudo cp /etc/rancher/k3s/k3s.yaml kubeconfig
+            sed -i 's/127.0.0.1/k3s/g' kubeconfig
+            
+            kubectl apply -f k8s/
+            kubectl rollout status deployment/biblio-app --timeout=90s
+            kubectl get svc -o wide
 
       - name: ✅ Vérifier l'état des pods
         run: |

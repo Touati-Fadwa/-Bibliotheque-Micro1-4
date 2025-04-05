@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: biblio-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: biblio
+  template:
+    metadata:
+      labels:
+        app: biblio
+    spec:
+      containers:
+      - name: app
+        image: touatifadwa/biblio-gatekeeper:latest
+        ports:
+        - containerPort: 3000  # ← Changez ce port selon votre app
