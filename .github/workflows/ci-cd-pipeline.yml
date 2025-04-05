@@ -94,24 +94,20 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      - name: 🚀 Installer k3s (version simplifiée)
+      - name: 🚀 Installer et configurer k3s
         run: |
-            # Installer k3s avec les paramètres minimums
+            # 1. Installer k3s avec les bonnes permissions
             curl -sfL https://get.k3s.io | \
-              INSTALL_K3S_EXEC="--docker --disable=traefik" \
+              INSTALL_K3S_EXEC="--docker --disable=traefik --write-kubeconfig-mode 644" \
               sh -
-            
-            # Attendre que k3s soit prêt
-            sleep 30  # Délai simple au lieu de la vérification complexe
-            
-            # Configurer l'accès
-            sudo cp /etc/rancher/k3s/k3s.yaml kubeconfig
+        
+            # 2. Configurer l'accès (version simplifiée)
+            sudo cat /etc/rancher/k3s/k3s.yaml > kubeconfig
+            chmod 644 kubeconfig
             echo "KUBECONFIG=${PWD}/kubeconfig" >> $GITHUB_ENV
         
-      - name: 🛠️ Vérifier l'installation
-        run: |
-            kubectl get nodes
-            kubectl cluster-info
+      - name: ✅ Vérification rapide
+        run: kubectl get nodes
         
       - name: 🛠️ Déployer l'application
         run: |
