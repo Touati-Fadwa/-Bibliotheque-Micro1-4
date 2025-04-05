@@ -117,8 +117,6 @@ jobs:
             
       - name: 🛠️ Déployer et Vérifier
         run: |
-            # 1. Appliquer la configuration
-            kubectl apply -f k8s/
             
             # 2. Vérifier que le déploiement existe
             echo "Vérification du déploiement..."
