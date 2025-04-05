@@ -94,15 +94,16 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      - name: 🚀 Déployer sur k3s
+      - name: 🚀 Configurer et déployer sur k3s
         run: |
-            # Configuration auto k3s
-            sudo cp /etc/rancher/k3s/k3s.yaml kubeconfig
-            sed -i 's/127.0.0.1/k3s/g' kubeconfig
+            # Installation et configuration k3s
+            curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644" sh -
+            until kubectl get nodes; do sleep 2; done
             
+            # Appliquer les configurations
             kubectl apply -f k8s/
             kubectl rollout status deployment/biblio-app --timeout=90s
-            kubectl get svc -o wide
+            echo "Application déployée avec succès"
 
       - name: ✅ Vérifier l'état des pods
         run: |
