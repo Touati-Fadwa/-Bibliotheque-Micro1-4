@@ -94,31 +94,38 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push touatifadwa/biblio-gatekeeper:latest
 
-      - name: 🚀 Configurer et déployer sur k3s
+      - name: 🚀 Installer et configurer k3s
         run: |
-            # Installer k3s avec configuration automatique
-            curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --disable traefik" sh -
-            
-            # Attendre que k3s soit prêt
-            echo "⏳ Attente du démarrage de k3s..."
-            until sudo kubectl cluster-info; do
+            # Installer k3s avec configuration explicite
+            curl -sfL https://get.k3s.io | \
+              INSTALL_K3S_EXEC="--write-kubeconfig-mode 644 --kube-apiserver-arg 'bind-address=0.0.0.0'" \
+              K3S_KUBECONFIG_MODE="644" \
+              sh -
+        
+            # Attendre que l'API soit disponible
+            echo "⏳ Attente du démarrage de l'API k3s..."
+            export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+            until kubectl cluster-info; do
+              echo "En attente de l'API Kubernetes..."
               sleep 5
             done
-            
-            # Configurer l'accès kubectl
+        
+            # Configurer l'accès pour l'utilisateur courant
             sudo cp /etc/rancher/k3s/k3s.yaml kubeconfig.yaml
             sudo chown $USER:$USER kubeconfig.yaml
             sed -i 's/127.0.0.1/localhost/g' kubeconfig.yaml
-            export KUBECONFIG=$(pwd)/kubeconfig.yaml
-            
-            # Vérifier la connexion
+            echo "KUBECONFIG=${PWD}/kubeconfig.yaml" >> $GITHUB_ENV
+        
+            # Vérification finale
             kubectl config view
-            kubectl cluster-info
-            
-            # Déployer l'application
+            kubectl get nodes
+        
+      - name: 🛠️ Déployer l'application
+        run: |
             kubectl apply -f k8s/
             kubectl rollout status deployment/biblio-app --timeout=120s
-
+            
+            
       - name: ✅ Vérifier l'état des pods
         run: |
           kubectl wait --for=condition=ready pod -l app=biblio-gatekeeper --timeout=120s
