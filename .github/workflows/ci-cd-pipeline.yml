@@ -112,8 +112,8 @@ jobs:
       - name: 🛠️ Déployer et Vérifier
         run: |
           # Appliquer les configurations
-          kubectl apply -f deployment.yaml
-          kubectl apply -f service.yaml
+           kubectl apply -f k8s/
+          
           
           # Attendre que le déploiement soit disponible
           kubectl rollout status deployment/biblio-app --timeout=120s
