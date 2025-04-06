@@ -109,28 +109,34 @@ jobs:
       - name: ✅ Vérification rapide
         run: kubectl get nodes
         
-      - name: 🛠️ Déployer
-        run: |
-          # 1. Appliquer la configuration
-          kubectl apply -f k8s/
-          
-            
       - name: 🛠️ Déployer et Vérifier
         run: |
-            
-            # 2. Vérifier que le déploiement existe
-            echo "Vérification du déploiement..."
-            kubectl get deployment biblio-app -o wide
-            
-            # 3. Vérifier les ReplicaSets
-            echo "ReplicaSets créés :"
-            kubectl get rs -l app=biblio
-            
-            # 4. Attendre les pods avec étiquette correcte (version robuste)
-            timeout 120 bash -c 'while [ -z "$(kubectl get pods -l app=biblio 2>/dev/null)" ]; do sleep 5; echo "En attente des pods..."; done'
-            
-            # 5. Vérification finale
-            kubectl get pods -l app=biblio -o wide
+          # Appliquer les configurations
+          kubectl apply -f deployment.yml
+          kubectl apply -f service.yml
+          
+          # Attendre que le déploiement soit disponible
+          kubectl rollout status deployment/biblio-app --timeout=120s
+          
+          # Vérification détaillée
+          echo "Détails du déploiement:"
+          kubectl get deployment biblio-app -o wide
+          echo ""
+          
+          echo "Détails des pods:"
+          kubectl get pods -l app=biblio -o wide
+          echo ""
+          
+          echo "Événements:"
+          kubectl get events --sort-by=.metadata.creationTimestamp
+          echo ""
+          
+          # Vérifier pourquoi les pods sont en Pending (si c'est toujours le cas)
+          for pod in $(kubectl get pods -l app=biblio -o name); do
+            echo "Détails pour $pod:"
+            kubectl describe $pod
+            echo ""
+          done
 
       - name: 📨 Envoyer une notification
         if: success()
