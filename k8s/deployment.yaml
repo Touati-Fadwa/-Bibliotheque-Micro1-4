@@ -17,8 +17,4 @@ spec:
         image: touatifadwa/biblio-gatekeeper:latest
         ports:
         - containerPort: 3000  # ← Changez ce port selon votre app
-        readinessProbe:
-          httpGet:
-            path: /  # Ou votre endpoint de santé
-            port: 3000
-          initialDelaySeconds: 10
+       

@@ -114,12 +114,24 @@ jobs:
           # 1. Appliquer la configuration
           kubectl apply -f k8s/
              
-      - name: 🚀 Déployer simplement
+      - name: 🛠️ Déployer et Vérifier
         run: |
-            
-            sleep 60  # Délai unique de 60s
-            kubectl get pods -o wide
-            kubectl logs -l app=biblio
+              
+              # 2. Vérifier que le déploiement existe
+              echo "Vérification du déploiement..."
+              kubectl get deployment biblio-app -o wide
+              
+              # 3. Vérifier les ReplicaSets
+              echo "ReplicaSets créés :"
+              kubectl get rs -l app=biblio
+              
+              # 4. Attendre les pods avec étiquette correcte (version robuste)
+              timeout 120 bash -c 'while [ -z "$(kubectl get pods -l app=biblio 2>/dev/null)" ]; do sleep 5; echo "En attente des pods..."; done'
+              
+              # 5. Vérification finale
+              kubectl get pods -l app=biblio -o wide
+  
+  
 
       - name: 📨 Envoyer une notification
         if: success()
