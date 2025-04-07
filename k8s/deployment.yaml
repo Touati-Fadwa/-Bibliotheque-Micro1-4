@@ -20,9 +20,9 @@ metadata:
   name: biblio-secrets
   namespace: bibliotheque
 type: Opaque
-data:
-  DB_PASSWORD: $(echo -n "monMotDePasseSecurise123" | base64 | tr -d '\n')
-  API_KEY: $(echo -n "maCleAPIsecreteXYZ" | base64 | tr -d '\n')
+stringData:  # ← Utilisez stringData au lieu de data
+  DB_PASSWORD: "monMotDePasseSecurise123"  # Valeur en CLAIR
+  API_KEY: "maCleAPIsecreteXYZ"           # Valeur en CLAIR
 ---
 apiVersion: apps/v1
 kind: Deployment
