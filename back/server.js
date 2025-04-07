@@ -203,13 +203,5 @@ if (process.env.NODE_ENV === 'test') {
   module.exports = { app };
 }
 
-// Health check (liveness probe)
-app.get('/health', (req, res) => {
-  res.status(200).send('OK');
-});
 
-// Readiness check (readiness probe)
-app.get('/ready', (req, res) => {
-  res.status(200).send('Ready');
-});
 
