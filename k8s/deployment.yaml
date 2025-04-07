@@ -44,6 +44,7 @@ spec:
       containers:
       - name: app
         image: touatifadwa/biblio-gatekeeper:latest
+        imagePullPolicy: Always  # ← Ajoutez cette ligne
         ports:
         - containerPort: 3000
           name: http
@@ -54,7 +55,7 @@ spec:
             name: biblio-secrets
         resources:
           requests:
-            cpu: "100m"
+            cpu: "200m"
             memory: "128Mi"
           limits:
             cpu: "500m"
