@@ -13,6 +13,10 @@ data:
   APP_ENV: "production"
   DB_HOST: "db-service"
   LOG_LEVEL: "debug"
+  DB_USER: "postgres"
+  DB_NAME: "bibliotheque_iset"
+  DB_PORT: "5432"
+  PORT: "3000"
 ---
 apiVersion: v1
 kind: Secret
@@ -20,9 +24,9 @@ metadata:
   name: biblio-secrets
   namespace: bibliotheque
 type: Opaque
-stringData:  # ← Utilisez stringData au lieu de data
-  DB_PASSWORD: "monMotDePasseSecurise123"  # Valeur en CLAIR
-  API_KEY: "maCleAPIsecreteXYZ"           # Valeur en CLAIR
+data:
+  DB_PASSWORD: cGFzc3dvcmQ= # Valeur encodée en base64 pour "password"
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla # Valeur encodée en base64 pour "maCleAPIsecreteXYZ"
 ---
 apiVersion: apps/v1
 kind: Deployment
