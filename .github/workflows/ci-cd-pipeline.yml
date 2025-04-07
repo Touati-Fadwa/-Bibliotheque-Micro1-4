@@ -116,12 +116,12 @@ jobs:
 
       - name: Delete the existing pods
         run: |
-         kubectl delete pod -l app=bibliom1 --namespace=bibliotheque  # Remplacer par le label de votre application
+           kubectl delete pod bibliom1-bf799864f-6tghl --namespace=bibliotheque
+           kubectl delete pod -l app=bibliom1 --namespace=bibliotheque
 
-      - name: Wait for the new pods to be ready
-        run: |
-         kubectl rollout status deployment/bibliom1 --namespace=bibliotheque
 
+
+      
       - name: Verify deployment status
         run: |
          kubectl get pods --namespace=bibliotheque
