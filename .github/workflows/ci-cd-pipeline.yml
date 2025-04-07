@@ -145,17 +145,4 @@ jobs:
     
      
 
-      - name: 📨 Envoyer une notification
-        if: success()
-        run: |
-          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
-            -d "title=CI/CD Status" \
-            -d "message=Déploiement réussi ✅ - Rapport SonarQube: $SONAR_HOST_URL/dashboard?id=$PROJECT_KEY"
-
-      - name: 🔄 Rollback en cas d'échec
-        if: failure()
-        run: |
-          kubectl rollout undo deployment/biblio-gatekeeper
-          curl -X POST "https://gotify.example.com/message?token=${{ secrets.GOTIFY_TOKEN }}" \
-            -d "title=CI/CD Status" \
-            -d "message=Échec du déploiement ❌ - Rollback initié"                         
+                         
