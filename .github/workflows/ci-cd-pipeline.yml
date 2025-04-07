@@ -121,6 +121,9 @@ jobs:
              
       - name: 🛠️ Déployer et Vérifier
         run: |
+
+            kubectl delete pod -l app=biblio -n bibliotheque
+
         
             echo "🔍 Vérification du déploiement 'bibliom1'..."
             kubectl get deploy bibliom1 -n bibliotheque
