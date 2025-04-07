@@ -113,6 +113,18 @@ jobs:
         run: |
           # 1. Appliquer la configuration
           kubectl apply -f k8s/
+
+      - name: Delete the existing pods
+        run: |
+         kubectl delete pod -l app=bibliom1 --namespace=bibliotheque  # Remplacer par le label de votre application
+
+      - name: Wait for the new pods to be ready
+        run: |
+         kubectl rollout status deployment/bibliom1 --namespace=bibliotheque
+
+      - name: Verify deployment status
+        run: |
+         kubectl get pods --namespace=bibliotheque
              
       - name: 🛠️ Déployer et Vérifier
         run: |
