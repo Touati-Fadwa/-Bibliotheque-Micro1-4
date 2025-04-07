@@ -1,10 +1,9 @@
-# namespace.yaml
+# Configuration complète dans un seul fichier
 apiVersion: v1
 kind: Namespace
 metadata:
   name: bibliotheque
 ---
-# configmap.yaml
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -15,7 +14,6 @@ data:
   DB_HOST: "db-service"
   LOG_LEVEL: "debug"
 ---
-# secret.yaml
 apiVersion: v1
 kind: Secret
 metadata:
@@ -23,10 +21,9 @@ metadata:
   namespace: bibliotheque
 type: Opaque
 data:
-  DB_PASSWORD: base64EncodedPassword  # Remplacez par votre vrai mot de passe encodé en base64
-  API_KEY: base64EncodedKey          # Remplacez par votre vraie clé encodée en base64
+  DB_PASSWORD: $(echo -n "monMotDePasseSecurise123" | base64 | tr -d '\n')
+  API_KEY: $(echo -n "maCleAPIsecreteXYZ" | base64 | tr -d '\n')
 ---
-# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -75,7 +72,6 @@ spec:
           initialDelaySeconds: 5
           periodSeconds: 5
 ---
-# service.yaml
 apiVersion: v1
 kind: Service
 metadata:
