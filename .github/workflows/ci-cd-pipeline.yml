@@ -84,7 +84,7 @@ jobs:
                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
 
       - name: 🐳 Construire l'image Docker
-        run: docker build -t touatifadwa/biblio-gatekeeper:latest .
+        run: docker build -t touatifadwa/biblioMicro1:latest .
 
       - name: ⬆️ Pousser l'image Docker
         env:
@@ -92,7 +92,7 @@ jobs:
           DOCKER_PASSWORD: foufou53550880  
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          docker push touatifadwa/biblio-gatekeeper:latest
+          docker push touatifadwa/biblioMicro1:latest
 
       - name: 🚀 Installer et configurer k3s
         run: |
@@ -114,40 +114,21 @@ jobs:
           # 1. Appliquer la configuration
           kubectl apply -f k8s/
              
-      - name: 🛠️ Déployer et Vérifier
+      - name: 🚀 Résoudre le problème Pending
         run: |
+            # 1. Augmenter les ressources
+            kubectl set resources deployment biblio-app -n bibliotheque --containers=app --requests=cpu=500m,memory=512Mi
             
+            # 2. Vérifier les nœuds
+            echo "=== Capacité des nœuds ==="
+            kubectl describe nodes | grep -A 5 "Allocatable"
             
-            # 2. Vérifier que le déploiement existe dans le namespace correct
-            echo "Vérification du déploiement..."
-            kubectl get deployment biblio-app -n bibliotheque -o wide
+            # 3. Relancer les pods
+            kubectl rollout restart deployment/biblio-app -n bibliotheque
             
-            # 3. Vérifier les ReplicaSets avec les bons labels et namespace
-            echo "ReplicaSets créés :"
-            kubectl get rs -n bibliotheque -l app=biblio,tier=backend
-            
-            # 4. Attendre les pods avec étiquette correcte (version robuste)
-            echo "Attente des pods..."
-            timeout 120 bash -c 'while [ -z "$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend 2>/dev/null)" ]; do sleep 5; echo "En attente des pods..."; done'
-            
-            # 5. Vérification finale des pods
-            echo "État des pods :"
-            kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o wide
-            
-            # 6. Vérification supplémentaire du service
-            echo "Vérification du service :"
-            kubectl get svc biblio-service -n bibliotheque -o wide
-            
-            # 7. Vérification des logs d'un pod (premier pod trouvé)
-            POD_NAME=$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o jsonpath='{.items[0].metadata.name}')
-            echo "Affichage des logs du pod $POD_NAME :"
-            kubectl logs -n bibliotheque $POD_NAME --tail=50
-            
-            # 8. Vérification des événements du namespace
-            echo "Événements du namespace :"
-            kubectl get events -n bibliotheque
-  
-  
+            # 4. Vérification finale après 30s
+            sleep 30
+            kubectl get pods -n bibliotheque
 
       - name: 📨 Envoyer une notification
         if: success()

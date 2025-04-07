@@ -43,7 +43,7 @@ spec:
     spec:
       containers:
       - name: app
-        image: touatifadwa/biblio-gatekeeper:latest
+        image: touatifadwa/biblioMicro1:latest
         imagePullPolicy: Always  # ← Ajoutez cette ligne
         ports:
         - containerPort: 3000
