@@ -84,7 +84,7 @@ jobs:
                   -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
 
       - name: 🐳 Construire l'image Docker
-        run: docker build -t touatifadwa/biblioMicro1:latest .
+        run: docker build -t touatifadwa/bibliomicro1:latest .
 
       - name: ⬆️ Pousser l'image Docker
         env:
@@ -92,7 +92,7 @@ jobs:
           DOCKER_PASSWORD: foufou53550880  
         run: |
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          docker push touatifadwa/biblioMicro1:latest
+          docker push touatifadwa/bibliomicro1:latest
 
       - name: 🚀 Installer et configurer k3s
         run: |
