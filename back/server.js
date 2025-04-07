@@ -1,4 +1,3 @@
-
 const express = require('express');
 const cors = require('cors');
 const { Pool } = require('pg');
@@ -190,13 +189,17 @@ app.delete('/api/students/:id', async (req, res) => {
 app.listen(port, () => {
   console.log(`Bibliothèque ISET Tozeur API running on port ${port}`);
 });
-// ... tout votre code existant reste inchangé ...
 
+// Simulation pour Jest (uniquement en mode test)
+if (process.env.NODE_ENV === 'test') {
+  module.exports = {
+    app,
+    Pool: {
+      query: jest.fn().mockResolvedValue({ rows: [{}] })
+    }
+  };
+} else {
+  // Exportation pour la production
+  module.exports = { app };
+}
 
-// À la fin de server.js
-module.exports = {
-  app,
-  Pool: {
-    query: jest.fn().mockResolvedValue({ rows: [{}] })
-  }
-};
