@@ -55,8 +55,8 @@ spec:
             name: biblio-secrets
         resources:
           requests:
-            cpu: "200m"
-            memory: "128Mi"
+            cpu: "500m"
+            memory: "512Mi"
           limits:
             cpu: "500m"
             memory: "512Mi"
