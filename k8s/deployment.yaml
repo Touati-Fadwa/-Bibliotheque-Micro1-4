@@ -1,4 +1,4 @@
-# Configuration complète dans un seul fichier
+# deployment-complet.yaml
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -16,7 +16,7 @@ data:
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
   DB_PORT: "5432"
-  PORT: "3000"
+  PORT: "3000"  # Port utilisé par l'application
 ---
 apiVersion: v1
 kind: Secret
@@ -25,8 +25,8 @@ metadata:
   namespace: bibliotheque
 type: Opaque
 data:
-  DB_PASSWORD: cGFzc3dvcmQ= # Valeur encodée en base64 pour "password"
-  API_KEY: bWFDbGVBUElzZWNyZXRlWFla # Valeur encodée en base64 pour "maCleAPIsecreteXYZ"
+  DB_PASSWORD: cGFzc3dvcmQ=  # "password" en base64
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla  # "maCleAPIsecreteXYZ" en base64
 ---
 apiVersion: apps/v1
 kind: Deployment
@@ -35,6 +35,10 @@ metadata:
   namespace: bibliotheque
 spec:
   replicas: 3
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
       app: biblio
@@ -48,10 +52,10 @@ spec:
       containers:
       - name: bibliom1
         image: touatifadwa/bibliomicro1:latest
-        imagePullPolicy: Always  # ← Ajoutez cette ligne
+        imagePullPolicy: Always
         ports:
-        - containerPort: 3000
-          name: http
+        - containerPort: 3000  # Doit matcher le port de l'application
+          name: app-port
         envFrom:
         - configMapRef:
             name: biblio-config
@@ -62,20 +66,22 @@ spec:
             cpu: "500m"
             memory: "512Mi"
           limits:
-            cpu: "500m"
-            memory: "512Mi"
+            cpu: "1000m"
+            memory: "1Gi"
         livenessProbe:
           httpGet:
             path: /health
-            port: http
+            port: 3000  # Port numérique recommandé
           initialDelaySeconds: 30
           periodSeconds: 10
+          failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /ready
-            port: http
-          initialDelaySeconds: 5
+            port: 3000  # Port numérique recommandé
+          initialDelaySeconds: 15  # Délai augmenté
           periodSeconds: 5
+          failureThreshold: 3
 ---
 apiVersion: v1
 kind: Service
@@ -83,12 +89,12 @@ metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
+  type: NodePort
   selector:
     app: biblio
     tier: backend
   ports:
     - name: http
       port: 80
-      targetPort: http
+      targetPort: 3000  # Doit matcher le port du container
       nodePort: 31000
-  type: NodePort
