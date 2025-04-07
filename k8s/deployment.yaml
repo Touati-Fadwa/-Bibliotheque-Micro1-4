@@ -1,20 +1,93 @@
+# namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: bibliotheque
+---
+# configmap.yaml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: biblio-config
+  namespace: bibliotheque
+data:
+  APP_ENV: "production"
+  DB_HOST: "db-service"
+  LOG_LEVEL: "debug"
+---
+# secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: biblio-secrets
+  namespace: bibliotheque
+type: Opaque
+data:
+  DB_PASSWORD: base64EncodedPassword  # Remplacez par votre vrai mot de passe encodé en base64
+  API_KEY: base64EncodedKey          # Remplacez par votre vraie clé encodée en base64
+---
+# deployment.yaml
 apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: biblio-app
+  namespace: bibliotheque
 spec:
-  replicas: 5
+  replicas: 3
   selector:
     matchLabels:
       app: biblio
+      tier: backend
   template:
     metadata:
       labels:
         app: biblio
+        tier: backend
     spec:
       containers:
       - name: app
         image: touatifadwa/biblio-gatekeeper:latest
         ports:
-        - containerPort: 3000  # ← Changez ce port selon votre app
-       
+        - containerPort: 3000
+          name: http
+        envFrom:
+        - configMapRef:
+            name: biblio-config
+        - secretRef:
+            name: biblio-secrets
+        resources:
+          requests:
+            cpu: "100m"
+            memory: "128Mi"
+          limits:
+            cpu: "500m"
+            memory: "512Mi"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /ready
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 5
+---
+# service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: biblio-service
+  namespace: bibliotheque
+spec:
+  selector:
+    app: biblio
+    tier: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+      nodePort: 31000
+  type: NodePort
