@@ -27,7 +27,7 @@ stringData:  # ← Utilisez stringData au lieu de data
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: biblio-app
+  name: bibliom1
   namespace: bibliotheque
 spec:
   replicas: 3
@@ -42,7 +42,7 @@ spec:
         tier: backend
     spec:
       containers:
-      - name: app
+      - name: bibliom1
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always  # ← Ajoutez cette ligne
         ports:
