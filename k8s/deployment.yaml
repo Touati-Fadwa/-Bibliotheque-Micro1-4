@@ -1,9 +1,12 @@
-# deployment-complet.yaml
+# --- 1. Namespace ---
 apiVersion: v1
 kind: Namespace
 metadata:
   name: bibliotheque
+
 ---
+
+# --- 2. ConfigMap ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -16,8 +19,11 @@ data:
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
   DB_PORT: "5432"
-  PORT: "3000"  # Port utilisé par l'application
+  PORT: "3000"
+
 ---
+
+# --- 3. Secret ---
 apiVersion: v1
 kind: Secret
 metadata:
@@ -25,9 +31,12 @@ metadata:
   namespace: bibliotheque
 type: Opaque
 data:
-  DB_PASSWORD: cGFzc3dvcmQ=  # "password" en base64
-  API_KEY: bWFDbGVBUElzZWNyZXRlWFla  # "maCleAPIsecreteXYZ" en base64
+  DB_PASSWORD: cGFzc3dvcmQ=           # "password"
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ"
+
 ---
+
+# --- 4. Deployment ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -54,7 +63,7 @@ spec:
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000  # Doit matcher le port de l'application
+        - containerPort: 3000  # Assure-toi que ton app écoute sur ce port
           name: app-port
         envFrom:
         - configMapRef:
@@ -70,19 +79,22 @@ spec:
             memory: "1Gi"
         livenessProbe:
           httpGet:
-            path: /health
-            port: 3000  # Port numérique recommandé
-          initialDelaySeconds: 30
+            path: /
+            port: 3000
+          initialDelaySeconds: 15
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /ready
-            port: 3000  # Port numérique recommandé
-          initialDelaySeconds: 15  # Délai augmenté
+            path: /
+            port: 3000
+          initialDelaySeconds: 10
           periodSeconds: 5
           failureThreshold: 3
+
 ---
+
+# --- 5. Service ---
 apiVersion: v1
 kind: Service
 metadata:
@@ -96,5 +108,5 @@ spec:
   ports:
     - name: http
       port: 80
-      targetPort: 3000  # Doit matcher le port du container
+      targetPort: 3000
       nodePort: 31000
