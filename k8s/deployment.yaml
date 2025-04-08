@@ -37,6 +37,7 @@ data:
 ---
 
 # --- 4. Deployment ---
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -63,8 +64,8 @@ spec:
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000  # Assure-toi que ton app écoute sur ce port
-          name: app-port
+        - containerPort: 3000
+          name: http-port
         envFrom:
         - configMapRef:
             name: biblio-config
@@ -72,24 +73,26 @@ spec:
             name: biblio-secrets
         resources:
           requests:
-            cpu: "800m"
-            memory: "512Mi"
+            cpu: "1000m"
+            memory: "768Mi"
           limits:
-            cpu: "1500m"
-            memory: "1.5Gi"
+            cpu: "2000m"
+            memory: "2Gi"
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 3000
-          initialDelaySeconds: 25
+          initialDelaySeconds: 45
           periodSeconds: 10
+          timeoutSeconds: 3
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /
+            path: /ready
             port: 3000
-          initialDelaySeconds: 40
+          initialDelaySeconds: 20
           periodSeconds: 5
+          timeoutSeconds: 3
           failureThreshold: 3
 
 ---
