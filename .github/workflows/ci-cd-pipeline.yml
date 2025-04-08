@@ -114,22 +114,25 @@ jobs:
           # 1. Appliquer la configuration
           kubectl apply -f k8s/
              
-      - name: 🔍 Vérification approfondie des pods
+      - name: 🛠️ Déployer et Vérifier
         run: |
-            echo "1. État global des pods :"
-            kubectl get pods -n bibliotheque -l app=biblio -o wide
-            
-            echo -e "\n2. Détails des pods non ready :"
-            kubectl get pods -n bibliotheque -l app=biblio --no-headers | grep -v "Running" | while read pod status _; do
-              echo -e "\n=== Détails du pod $pod (Status: $status) ==="
-              kubectl describe pod -n bibliotheque $pod | grep -A 10 "Events:"
-            done
-            
-            echo -e "\n3. Vérification des endpoints :"
-            kubectl get endpoints -n bibliotheque biblio-service -o yaml | grep -A 5 subsets:
-            
-            echo -e "\n4. Logs des containers :"
-            kubectl get pods -n bibliotheque -l app=biblio --no-headers | awk '{print $1}' | while read pod; do
-              echo -e "\nLogs de $pod :"
-              kubectl logs -n bibliotheque $pod --tail=20 --timestamps
-            done
+          
+              echo "🔍 Vérification du déploiement 'bibliom1'..."
+              kubectl get deploy bibliom1 -n bibliotheque
+          
+              echo "🔁 Vérification des ReplicaSets..."
+              kubectl get rs -n bibliotheque -l app=biblio,tier=backend
+          
+              echo "⏳ Attente des pods..."
+              sleep 10
+              kubectl get pods -n bibliotheque -l app=biblio,tier=backend
+          
+              echo "🌐 Vérification du service 'biblio-service'..."
+              kubectl get svc biblio-service -n bibliotheque
+          
+              echo "📄 Affichage des logs du premier pod..."
+              POD=$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o jsonpath="{.items[0].metadata.name}")
+              kubectl logs -n bibliotheque "$POD" --tail=50
+          
+              echo "📅 Événements récents dans le namespace 'bibliotheque'..."
+              kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
