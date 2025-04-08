@@ -116,33 +116,5 @@ jobs:
              
       - name: 🛠️ Déployer et Vérifier
         run: |
-            # 1. Vérifications initiales
-            echo "🔍 Vérification du déploiement 'bibliom1'..."
-            kubectl get deploy bibliom1 -n bibliotheque -o wide
             
-            echo "🔁 Vérification des ReplicaSets..."
-            kubectl get rs -n bibliotheque -l app=biblio,tier=backend -o wide
-            
-            # 2. Monitoring en temps réel (60 secondes max)
-            echo -e "\n🔄 Monitoring live (60s) - Ctrl+C pour passer à la suite..."
-            end=$((SECONDS+60))
-            while [ $SECONDS -lt $end ]; do
-              echo -e "\n=== $(date +%T) ==="
-              echo "--- PODS ---"
-              kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o wide
-              echo ""
-              echo "--- ENDPOINTS ---"
-              kubectl get endpoints biblio-service -n bibliotheque -o wide
-              echo ""
-              echo "--- SERVICE ---"
-              kubectl get svc biblio-service -n bibliotheque -o wide
-              sleep 2
-            done
-            
-            # 3. Vérifications finales
-            echo -e "\n📄 Affichage des logs du premier pod..."
-            POD=$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o jsonpath="{.items[0].metadata.name}")
-            kubectl logs -n bibliotheque "$POD" --tail=50 --timestamps
-            
-            echo "📅 Événements récents dans le namespace 'bibliotheque'..."
-            kubectl get events -n bibliotheque --sort-by='.lastTimestamp' --field-selector involvedObject.name=bibliom1
+              kubectl get pods  
