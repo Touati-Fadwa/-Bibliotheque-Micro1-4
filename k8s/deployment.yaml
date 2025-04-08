@@ -1,4 +1,4 @@
-# --- 1. Namespace ---
+Namespace ---
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -37,7 +37,6 @@ data:
 ---
 
 # --- 4. Deployment ---
-
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,8 +63,8 @@ spec:
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000
-          name: http-port
+        - containerPort: 3000  # Assure-toi que ton app écoute sur ce port
+          name: app-port
         envFrom:
         - configMapRef:
             name: biblio-config
@@ -73,26 +72,24 @@ spec:
             name: biblio-secrets
         resources:
           requests:
-            cpu: "1000m"
-            memory: "768Mi"
+            cpu: "800m"
+            memory: "512Mi"
           limits:
-            cpu: "2000m"
-            memory: "2Gi"
+            cpu: "1500m"
+            memory: "1.5Gi"
         livenessProbe:
           httpGet:
-            path: /health
+            path: /
             port: 3000
-          initialDelaySeconds: 60
+          initialDelaySeconds: 25
           periodSeconds: 10
-          timeoutSeconds: 3
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /ready
+            path: /
             port: 3000
-          initialDelaySeconds: 30
+          initialDelaySeconds: 40
           periodSeconds: 5
-          timeoutSeconds: 3
           failureThreshold: 3
 
 ---
