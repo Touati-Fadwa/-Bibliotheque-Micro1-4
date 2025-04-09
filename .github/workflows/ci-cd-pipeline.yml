@@ -130,26 +130,10 @@ jobs:
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
       - name: 🔄 Rollback basique
-        if: failure()  # S'exécute seulement en cas d'échec
+        if: failure()
         run: |
-          echo "⏳ Tentative de rollback..."
-          
-          # 1. Essayer un rollback standard
-          if kubectl rollout undo deployment/bibliom1 -n bibliotheque; then
-            echo "✅ Rollback réussi"
-            kubectl rollout status deployment/bibliom1 -n bibliotheque --timeout=120s
-          else
-            # 2. Si échec, supprimer et recréer
-            echo "⚠️ Échec du rollback - Nettoyage et redéploiement..."
-            kubectl delete deployment/bibliom1 -n bibliotheque --ignore-not-found
-            kubectl apply -f k8s/
-            sleep 30  # Attendre le redémarrage
-          fi
-          
-          # 3. Vérification finale
-          echo "🔄 État actuel :"
-          kubectl get pods -n bibliotheque
-          exit 1  # Marquer le job comme échoué malgré le rollback
+            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
+            exit 1
 
       - name: ✉️ Déclencher l'email de notification GitHub
         if: failure()
