@@ -137,16 +137,22 @@ jobs:
             kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
             exit 1
 
-      - name: 📧 Envoyer un email en cas d’échec
-        env:
-          MAILGUN_API_KEY: ${{ secrets.MAILGUN_API_KEY }}
-          MAILGUN_DOMAIN: ${{ secrets.MAILGUN_DOMAIN }}
-        run: |
-          curl -s --user "api:$MAILGUN_API_KEY" \
-            https://api.mailgun.net/v3/$MAILGUN_DOMAIN/messages \
-            -F from="CI/CD <ci@$MAILGUN_DOMAIN>" \
-            -F to=fadwatouati58@gmail.com \
-            -F subject="❌ Échec du déploiement + rollback effectué" \
-            -F text="Le pipeline CI/CD a échoué et un rollback automatique a été appliqué. Vérifiez vos logs GitHub Actions."
-
+      - name: ✉️ Envoyer un email simple (via Gmail)
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+              server_address: smtp.gmail.com
+              server_port: 587
+              username: fadwatouati58@gmail.com  # ex: votremail@gmail.com
+              password: foufou53550880  # Mot de passe d'application
+              subject: "🚨 Échec du déploiement - ${{ github.repository }}"
+              body: |
+                Le workflow a échoué !
+                
+                Détails :
+                - Workflow : ${{ github.workflow }}
+                - Run ID : ${{ github.run_number }}
+                - Lien : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+              to: fadwatouati58@gmail.com
+              from: "CI/CD Bot <${{ secrets.GMAIL_ADDRESS }}>"
       
