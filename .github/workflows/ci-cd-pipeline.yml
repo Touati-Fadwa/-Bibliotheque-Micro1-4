@@ -131,22 +131,11 @@ jobs:
 
   
     
-      - name: ⏪ Rollback - Restaurer la version précédente
-        run: |
-          echo "❌ Échec détecté. Exécution du rollback..."
-
-          curl -sfL https://get.k3s.io | \
-            INSTALL_K3S_EXEC="--docker --disable=traefik --write-kubeconfig-mode 644" \
-            sh -
-
-          sudo cat /etc/rancher/k3s/deployment.yaml > kubeconfig
-          chmod 644 kubeconfig
-          export KUBECONFIG=${PWD}/kubeconfig
-
-          docker pull touatifadwa/bibliomicro1:previous
-          kubectl set image deployment/bibliom1 bibliom1=touatifadwa/bibliomicro1:previous -n bibliotheque
-
-          echo "✅ Rollback effectué avec succès"
+          - name: 🔄 Rollback basique
+          if: failure()
+          run: |
+            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
+            exit 1
 
       - name: 📧 Envoyer un email en cas d’échec
         env:
