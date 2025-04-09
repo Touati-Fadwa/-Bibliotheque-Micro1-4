@@ -131,9 +131,9 @@ jobs:
 
   
     
-          - name: 🔄 Rollback basique
-          if: failure()
-          run: |
+      - name: 🔄 Rollback basique
+        if: failure()
+        run: |
             kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
             exit 1
 
