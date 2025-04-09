@@ -137,22 +137,7 @@ jobs:
             kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
             exit 1
 
-      - name: ✉️ Envoyer un email simple (via Gmail)
+      - name: ✉️ Déclencher l'email de notification GitHub
         if: failure()
-        uses: dawidd6/action-send-mail@v3
-        with:
-              server_address: smtp.gmail.com
-              server_port: 587
-              username: fadwatouati58@gmail.com  # ex: votremail@gmail.com
-              password: foufou53550880  # Mot de passe d'application
-              subject: "🚨 Échec du déploiement - ${{ github.repository }}"
-              body: |
-                Le workflow a échoué !
-                
-                Détails :
-                - Workflow : ${{ github.workflow }}
-                - Run ID : ${{ github.run_number }}
-                - Lien : ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-              to: fadwatouati58@gmail.com
-              from: "CI/CD Bot <${{ secrets.GMAIL_ADDRESS }}>"
-      
+        run: |
+              echo "::warning::Échec du workflow - Un email a été envoyé par GitHub"
