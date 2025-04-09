@@ -129,11 +129,8 @@ jobs:
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
-  rollback:
-    needs: quality-check
-    if: failure()
-    runs-on: ubuntu-latest
-    steps:
+  
+    
       - name: ⏪ Rollback - Restaurer la version précédente
         run: |
           echo "❌ Échec détecté. Exécution du rollback..."
