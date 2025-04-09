@@ -130,13 +130,25 @@ jobs:
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
   
-    
-      - name: 🔄 Rollback basique
+      - name: 🔄 Rollback automatique
         if: failure()
         run: |
-            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
+            echo "❌ Échec détecté - Lancement du rollback..."
+            
+            # 1. Rollback standard
+            if kubectl rollout undo deployment/bibliom1 -n bibliotheque; then
+              echo "↩️ Rollback initié"
+              kubectl rollout status deployment/bibliom1 -n bibliotheque --timeout=120s || true
+            else
+              # 2. Solution radicale si le rollback échoue
+              echo "⚠️ Échec du rollback - Nettoyage complet"
+              kubectl delete deployment/bibliom1 -n bibliotheque --ignore-not-found
+              kubectl delete pods -n bibliotheque -l app=biblio --force
+            fi
+            
+            # Toujours terminer en erreur après un rollback
             exit 1
-
+      
       - name: ✉️ Déclencher l'email de notification GitHub
         if: failure()
         run: |
