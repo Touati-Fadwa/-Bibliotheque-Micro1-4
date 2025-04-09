@@ -116,7 +116,7 @@ jobs:
           kubectl get rs -n bibliotheque -l app=biblio,tier=backend
 
           echo "⏳ Attente des pods..."
-          sleep 10
+          sleep 50
           kubectl get pods -n bibliotheque -l app=biblio,tier=backend
 
           echo "🌐 Vérification du service 'biblio-service'..."
