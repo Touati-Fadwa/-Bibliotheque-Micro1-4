@@ -129,7 +129,11 @@ jobs:
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
-      
+      - name: 🔄 Rollback basique
+        if: failure()
+        run: |
+            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
+            exit 1
 
       - name: ✉️ Déclencher l'email de notification GitHub
         if: failure()
