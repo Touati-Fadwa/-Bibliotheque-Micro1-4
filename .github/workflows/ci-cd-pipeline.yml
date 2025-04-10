@@ -139,7 +139,7 @@ jobs:
 
       - name: Démarrer Prometheus et Grafana avec Docker Compose
         run: |
-          docker-compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
+          docker compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
 
       - name: Configurer Grafana pour se connecter à Prometheus
         run: |
