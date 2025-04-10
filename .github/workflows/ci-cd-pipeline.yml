@@ -143,11 +143,12 @@ jobs:
 
       - name: Configurer Grafana pour se connecter à Prometheus
         run: |
-          curl -X POST \
-            -H "Content-Type: application/json" \
-            -u "admin:admin" \  # Utiliser l'authentification de Grafana (admin/admin)
-            --data @grafana_datasource.json \  # Utiliser le fichier JSON de configuration
-            http://localhost:3000/api/datasources  # URL de l'API Grafana
+            curl -X POST \
+              -H "Content-Type: application/json" \
+              -u "admin:admin" \
+              --data @grafana_datasource.json \
+              http://localhost:3000/api/datasources
+        
 
       - name: Vérifier l'accès à Prometheus
         run: |
