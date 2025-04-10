@@ -129,13 +129,30 @@ jobs:
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
-      - name: 🔄 Rollback basique
-        if: failure()
-        run: |
-            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
-            exit 1
+      
 
       - name: ✉️ Déclencher l'email de notification GitHub
         if: failure()
         run: |
           echo "::warning::Échec du workflow - Un email a été envoyé par GitHub"
+
+
+      - name: Démarrer Prometheus et Grafana avec Docker Compose
+        run: |
+          docker-compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
+
+      - name: Configurer Grafana pour se connecter à Prometheus
+        run: |
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -u "admin:admin" \  # Utiliser l'authentification de Grafana (admin/admin)
+            --data @grafana_datasource.json \  # Utiliser le fichier JSON de configuration
+            http://localhost:3000/api/datasources  # URL de l'API Grafana
+
+      - name: Vérifier l'accès à Prometheus
+        run: |
+          curl -sSf http://localhost:9090/metrics  # Vérifie si Prometheus répond aux requêtes
+
+      - name: Vérifier l'accès à Grafana
+        run: |
+          curl -sSf http://localhost:3000  # Vérifie si Grafana répond
