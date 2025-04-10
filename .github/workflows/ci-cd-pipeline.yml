@@ -145,20 +145,7 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
 
-      - name: Wait for Grafana
-        run: |
-            for i in {1..30}; do
-              echo "⏱️ En attente de Grafana..."
-              if curl -s http://localhost:3000 | grep -q "Grafana"; then
-                echo "✅ Grafana est prêt !"
-                break
-              fi
-              sleep 5
-            done
-  
-      - name: Show Grafana logs (debug)
-        run: docker logs $(docker ps -q --filter "ancestor=grafana/grafana")
-  
+      
          
       - name: Configurer Grafana pour se connecter à Prometheus
         run: |
@@ -169,9 +156,19 @@ jobs:
               http://localhost:3000/api/datasources
         
 
+      - name: Importer le Dashboard Grafana
+        run: |
+                  curl -X POST \
+                    -H "Content-Type: application/json" \
+                    -u "admin:admin" \
+                    --data @grafana_dashboard.json \
+                    http://localhost:3000/api/dashboards/db     
+
+
       - name: Vérifier l'accès à Prometheus
         run: |
           curl -sSf http://localhost:9090/metrics  # Vérifie si Prometheus répond aux requêtes
+          
 
       - name: Vérifier l'accès à Grafana
         run: |
