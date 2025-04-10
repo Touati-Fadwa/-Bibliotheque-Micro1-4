@@ -145,6 +145,15 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
 
+      - name: ⏳ Attendre que Grafana soit prêt
+        run: |
+            echo "⏳ Attente de Grafana..."
+            until curl -s http://localhost:3000/api/health | grep -q '"database":"ok"'; do
+              echo "⏱️ En attente de Grafana..."
+              sleep 5
+            done
+            echo "✅ Grafana est prêt"
+         
       - name: Configurer Grafana pour se connecter à Prometheus
         run: |
             curl -X POST \
