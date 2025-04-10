@@ -63,7 +63,7 @@ spec:
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 3000  # Assure-toi que ton app écoute sur ce port
+        - containerPort: 8080  # Assure-toi que ton app écoute sur ce port
           name: app-port
         envFrom:
         - configMapRef:

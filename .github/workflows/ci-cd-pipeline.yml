@@ -175,4 +175,4 @@ jobs:
 
       - name: Vérifier l'accès à Grafana
         run: |
-          curl -sSf http://localhost:3000  # Vérifie si Grafana répond
+          curl -sSf -u "admin:admin" http://localhost:3000
