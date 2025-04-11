@@ -62,6 +62,7 @@ spec:
           envFrom:
             - secretRef:
                 name: biblio-secrets
+                
             - configMapRef:
                 name: biblio-config
 
