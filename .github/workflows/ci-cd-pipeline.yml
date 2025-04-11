@@ -169,7 +169,7 @@ jobs:
 
       - name: 🔎 Vérifier que le dashboard a été importé
         run: |
-                DASHBOARD_TITLE="NodeJS Metrics"
+                DASHBOARD_TITLE="Node.js Application Dashboard"
                 DASHBOARD_UID=$(curl -s -u admin:admin http://localhost:3000/api/search?query= | jq -r ".[] | select(.title==\"$DASHBOARD_TITLE\") | .uid")
       
                 if [ -z "$DASHBOARD_UID" ]; then
