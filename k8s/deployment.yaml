@@ -6,64 +6,7 @@ metadata:
 
 ---
 
-# --- 2. Database Deployment ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: db
-  namespace: bibliotheque
-spec:
-  replicas: 1
-  selector:
-    matchLabels:
-      app: db
-  template:
-    metadata:
-      labels:
-        app: db
-        tier: database
-    spec:
-      containers:
-      - name: postgres
-        image: postgres:13
-        env:
-        - name: POSTGRES_USER
-          valueFrom:
-            configMapKeyRef:
-              name: biblio-config
-              key: DB_USER
-        - name: POSTGRES_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: biblio-secrets
-              key: DB_PASSWORD
-        - name: POSTGRES_DB
-          valueFrom:
-            configMapKeyRef:
-              name: biblio-config
-              key: DB_NAME
-        ports:
-        - containerPort: 5432
-
----
-
-# --- 3. Database Service ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: db-service
-  namespace: bibliotheque
-spec:
-  selector:
-    app: db
-  ports:
-    - protocol: TCP
-      port: 5432
-      targetPort: 5432
-
----
-
-# --- 4. ConfigMap ---
+# --- 2. ConfigMap ---
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -71,16 +14,16 @@ metadata:
   namespace: bibliotheque
 data:
   APP_ENV: "production"
-  DB_HOST: "db-service"  # Doit correspondre au nom du service de la base de données
+  DB_HOST: "db-service"
   LOG_LEVEL: "debug"
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
   DB_PORT: "5432"
-  PORT: "3000"  # Doit correspondre au port écouté par l'application
+  PORT: "3000"
 
 ---
 
-# --- 5. Secret ---
+# --- 3. Secret ---
 apiVersion: v1
 kind: Secret
 metadata:
@@ -93,7 +36,7 @@ data:
 
 ---
 
-# --- 6. App Deployment ---
+# --- 4. Deployment ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -104,19 +47,18 @@ spec:
   selector:
     matchLabels:
       app: biblio
-      tier: backend
   template:
     metadata:
       labels:
         app: biblio
-        tier: backend
+        tier: backend    # Ajout du label tier: backend ici pour correspondre au service
     spec:
       containers:
         - name: bibliom1
           image: touatifadwa/bibliomicro1:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 8080  # Doit correspondre au port écouté par l'application
+            - containerPort: 8080
           envFrom:
             - secretRef:
                 name: biblio-secrets
@@ -125,18 +67,18 @@ spec:
 
 ---
 
-# --- 7. App Service ---
+# --- 5. Service ---
 apiVersion: v1
 kind: Service
 metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: LoadBalancer
+  type: LoadBalancer  # Changer NodePort en LoadBalancer ici
   selector:
     app: biblio
-    tier: backend
+    tier: backend    # Le sélecteur ici doit correspondre aux labels du pod
   ports:
     - name: http
       port: 80
-      targetPort: 3000  # Doit correspondre au port du container
+      targetPort: 8080
