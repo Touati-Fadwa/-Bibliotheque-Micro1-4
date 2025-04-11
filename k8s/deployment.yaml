@@ -36,7 +36,7 @@ data:
 
 ---
 
-# --- 4. Deployment ---
+# --- 4. Deployment: Application Node.js ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,7 +51,7 @@ spec:
     metadata:
       labels:
         app: biblio
-        tier: backend    # Ajout du label tier: backend ici pour correspondre au service
+        tier: backend
     spec:
       containers:
         - name: bibliom1
@@ -62,19 +62,19 @@ spec:
           envFrom:
             - secretRef:
                 name: biblio-secrets
-                
             - configMapRef:
                 name: biblio-config
 
 ---
 
+# --- 5. Service: Application Node.js ---
 apiVersion: v1
 kind: Service
 metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: NodePort  # Change LoadBalancer to NodePort
+  type: NodePort
   selector:
     app: biblio
     tier: backend
@@ -82,13 +82,11 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
-      nodePort: 30080  # Port sur le nœud
-
-
+      nodePort: 30080
 
 ---
 
-# --- 5. PostgreSQL Deployment ---
+# --- 6. Deployment: PostgreSQL ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -119,10 +117,16 @@ spec:
                 secretKeyRef:
                   name: biblio-secrets
                   key: DB_PASSWORD
+          volumeMounts:
+            - name: pgdata
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: pgdata
+          emptyDir: {}
 
 ---
 
-# --- 6. PostgreSQL Service ---
+# --- 7. Service: PostgreSQL ---
 apiVersion: v1
 kind: Service
 metadata:
