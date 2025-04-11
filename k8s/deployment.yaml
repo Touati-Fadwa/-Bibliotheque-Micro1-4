@@ -74,7 +74,7 @@ metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: NodePort
+  type: LoadBalancer  # Changer NodePort en LoadBalancer ici
   selector:
     app: biblio
     tier: backend    # Le sélecteur ici doit correspondre aux labels du pod
@@ -82,4 +82,4 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
-      nodePort: 31000
+      
