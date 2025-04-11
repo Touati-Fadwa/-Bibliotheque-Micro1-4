@@ -63,7 +63,7 @@ spec:
         image: touatifadwa/bibliomicro1:latest
         imagePullPolicy: Always
         ports:
-        - containerPort: 8080  # Assure-toi que ton app écoute sur ce port
+        - containerPort: 8080
           name: app-port
         envFrom:
         - configMapRef:
@@ -79,14 +79,14 @@ spec:
             memory: "1.5Gi"
         livenessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 8080
           initialDelaySeconds: 25
           periodSeconds: 10
           failureThreshold: 3
         readinessProbe:
           httpGet:
-            path: /
+            path: /health
             port: 8080
           initialDelaySeconds: 40
           periodSeconds: 5
