@@ -167,14 +167,33 @@ jobs:
               http://localhost:3000/api/datasources
         
 
-      - name: Importer le Dashboard Grafana
+      - name: 🔎 Vérifier que le dashboard a été importé
         run: |
-                  curl -X POST \
-                    -H "Content-Type: application/json" \
-                    -u "admin:admin" \
-                    --data @grafana_dashboard.json \
-                    http://localhost:3000/api/dashboards/db     
-
+                DASHBOARD_TITLE="NodeJS Metrics"
+                DASHBOARD_UID=$(curl -s -u admin:admin http://localhost:3000/api/search?query= | jq -r ".[] | select(.title==\"$DASHBOARD_TITLE\") | .uid")
+      
+                if [ -z "$DASHBOARD_UID" ]; then
+                  echo "❌ Dashboard '$DASHBOARD_TITLE' non trouvé"
+                  exit 1
+                fi
+      
+                echo "✅ Dashboard '$DASHBOARD_TITLE' trouvé avec UID: $DASHBOARD_UID"
+      
+      - name: 📊 Vérifier la présence de la métrique Prometheus dans le dashboard
+        run: |
+                DASHBOARD_UID=$(curl -s -u admin:admin http://localhost:3000/api/search?query= | jq -r '.[] | select(.title=="NodeJS Metrics") | .uid')
+      
+                METRIQUE="nodejs_app_http_requests_total"
+                RESULT=$(curl -s -u admin:admin http://localhost:3000/api/dashboards/uid/$DASHBOARD_UID | jq -r '.. | objects | select(has("expr")) | .expr' | grep "$METRIQUE")
+      
+                if [ -z "$RESULT" ]; then
+                  echo "❌ Métrique '$METRIQUE' non trouvée dans le dashboard"
+                  exit 1
+                else
+                  echo "✅ Métrique '$METRIQUE' trouvée dans le dashboard"
+                fi
+      
+  
 
       - name: Vérifier l'accès à Prometheus
         run: |
