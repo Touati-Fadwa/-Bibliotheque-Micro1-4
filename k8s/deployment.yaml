@@ -14,7 +14,7 @@ metadata:
   namespace: bibliotheque
 data:
   APP_ENV: "production"
-  DB_HOST: "db-service"  # Nom du service de la base de données
+  DB_HOST: "db-service"  # Assure-toi que db-service est bien défini dans le namespace bibliotheque
   LOG_LEVEL: "debug"
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
@@ -31,12 +31,12 @@ metadata:
   namespace: bibliotheque
 type: Opaque
 data:
-  DB_PASSWORD: cGFzc3dvcmQ=           # "password" en base64
-  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ" en base64
+  DB_PASSWORD: cGFzc3dvcmQ=           # "password" (décodé en base64)
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ" (décodé en base64)
 
 ---
 
-# --- 4. Deployment (Application + Database) ---
+# --- 4. Deployment ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -64,6 +64,59 @@ spec:
                 name: biblio-secrets
             - configMapRef:
                 name: biblio-config
+
+---
+
+# --- 5. Service pour l'application (API) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: biblio-service
+  namespace: bibliotheque
+spec:
+  type: LoadBalancer  # Type LoadBalancer pour exposer le service en externe
+  selector:
+    app: biblio
+    tier: backend    # Sélecteur pour s'assurer que le service correspond aux labels des pods
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+
+---
+
+# --- 6. Service pour la base de données (db-service) ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: bibliotheque
+spec:
+  selector:
+    app: db
+  ports:
+    - port: 5432
+      targetPort: 5432
+
+---
+
+# --- 7. Deployment pour la base de données ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: db
+  namespace: bibliotheque
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: db
+  template:
+    metadata:
+      labels:
+        app: db
+    spec:
+      containers:
         - name: db
           image: postgres:latest
           env:
@@ -78,23 +131,3 @@ spec:
                   key: DB_PASSWORD
           ports:
             - containerPort: 5432
-
----
-
-# --- 5. Service ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: biblio-service
-  namespace: bibliotheque
-spec:
-  type: LoadBalancer  # Type LoadBalancer pour exposer l'application en externe
-  selector:
-    app: biblio
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-    - name: db
-      port: 5432
-      targetPort: 5432
