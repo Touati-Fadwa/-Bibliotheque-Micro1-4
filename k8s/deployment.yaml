@@ -116,7 +116,7 @@ spec:
           image: touatifadwa/bibliomicro1:latest
           imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 3000  # Doit correspondre au port écouté par l'application
+            - containerPort: 8080  # Doit correspondre au port écouté par l'application
           envFrom:
             - secretRef:
                 name: biblio-secrets
