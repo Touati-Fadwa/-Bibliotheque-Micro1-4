@@ -6,101 +6,7 @@ metadata:
 
 ---
 
-# --- 2. ConfigMap ---
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: biblio-config
-  namespace: bibliotheque
-data:
-  APP_ENV: "production"
-  DB_HOST: "db-service"  # Assure-toi que db-service est bien défini dans le namespace bibliotheque
-  LOG_LEVEL: "debug"
-  DB_USER: "postgres"
-  DB_NAME: "bibliotheque_iset"
-  DB_PORT: "5432"
-  PORT: "3000"
-
----
-
-# --- 3. Secret ---
-apiVersion: v1
-kind: Secret
-metadata:
-  name: biblio-secrets
-  namespace: bibliotheque
-type: Opaque
-data:
-  DB_PASSWORD: cGFzc3dvcmQ=           # "password" (décodé en base64)
-  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ" (décodé en base64)
-
----
-
-# --- 4. Deployment ---
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: bibliom1
-  namespace: bibliotheque
-spec:
-  replicas: 3
-  selector:
-    matchLabels:
-      app: biblio
-  template:
-    metadata:
-      labels:
-        app: biblio
-        tier: backend    # Ajout du label tier: backend pour correspondre au service
-    spec:
-      containers:
-        - name: bibliom1
-          image: touatifadwa/bibliomicro1:latest
-          imagePullPolicy: IfNotPresent
-          ports:
-            - containerPort: 8080
-          envFrom:
-            - secretRef:
-                name: biblio-secrets
-            - configMapRef:
-                name: biblio-config
-
----
-
-# --- 5. Service pour l'application (API) ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: biblio-service
-  namespace: bibliotheque
-spec:
-  type: LoadBalancer  # Type LoadBalancer pour exposer le service en externe
-  selector:
-    app: biblio
-    tier: backend    # Sélecteur pour s'assurer que le service correspond aux labels des pods
-  ports:
-    - name: http
-      port: 80
-      targetPort: 8080
-
----
-
-# --- 6. Service pour la base de données (db-service) ---
-apiVersion: v1
-kind: Service
-metadata:
-  name: db-service
-  namespace: bibliotheque
-spec:
-  selector:
-    app: db
-  ports:
-    - port: 5432
-      targetPort: 5432
-
----
-
-# --- 7. Deployment pour la base de données ---
+# --- 2. Database Deployment ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -115,19 +21,122 @@ spec:
     metadata:
       labels:
         app: db
+        tier: database
     spec:
       containers:
-        - name: db
-          image: postgres:latest
-          env:
-            - name: POSTGRES_DB
-              value: "bibliotheque_iset"
-            - name: POSTGRES_USER
-              value: "postgres"
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: biblio-secrets
-                  key: DB_PASSWORD
+      - name: postgres
+        image: postgres:13
+        env:
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: biblio-config
+              key: DB_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: biblio-secrets
+              key: DB_PASSWORD
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: biblio-config
+              key: DB_NAME
+        ports:
+        - containerPort: 5432
+
+---
+
+# --- 3. Database Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: bibliotheque
+spec:
+  selector:
+    app: db
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
+
+---
+
+# --- 4. ConfigMap ---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: biblio-config
+  namespace: bibliotheque
+data:
+  APP_ENV: "production"
+  DB_HOST: "db-service"  # Doit correspondre au nom du service de la base de données
+  LOG_LEVEL: "debug"
+  DB_USER: "postgres"
+  DB_NAME: "bibliotheque_iset"
+  DB_PORT: "5432"
+  PORT: "3000"  # Doit correspondre au port écouté par l'application
+
+---
+
+# --- 5. Secret ---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: biblio-secrets
+  namespace: bibliotheque
+type: Opaque
+data:
+  DB_PASSWORD: cGFzc3dvcmQ=           # "password"
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ"
+
+---
+
+# --- 6. App Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: bibliom1
+  namespace: bibliotheque
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: biblio
+      tier: backend
+  template:
+    metadata:
+      labels:
+        app: biblio
+        tier: backend
+    spec:
+      containers:
+        - name: bibliom1
+          image: touatifadwa/bibliomicro1:latest
+          imagePullPolicy: IfNotPresent
           ports:
-            - containerPort: 5432
+            - containerPort: 3000  # Doit correspondre au port écouté par l'application
+          envFrom:
+            - secretRef:
+                name: biblio-secrets
+            - configMapRef:
+                name: biblio-config
+
+---
+
+# --- 7. App Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: biblio-service
+  namespace: bibliotheque
+spec:
+  type: LoadBalancer
+  selector:
+    app: biblio
+    tier: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3000  # Doit correspondre au port du container
