@@ -17,7 +17,7 @@ COPY back /app/back
 COPY . .
 
 # Exposer le port sur lequel tourne l'application
-EXPOSE 8080
+EXPOSE 3000
 
 # Démarrer l'application
 CMD ["node", "back/server.js"]
