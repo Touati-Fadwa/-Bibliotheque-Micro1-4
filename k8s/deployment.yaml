@@ -14,7 +14,7 @@ metadata:
   namespace: bibliotheque
 data:
   APP_ENV: "production"
-  DB_HOST: "db-service"
+  DB_HOST: "db-service"  # Nom du service de la base de données
   LOG_LEVEL: "debug"
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
@@ -31,12 +31,12 @@ metadata:
   namespace: bibliotheque
 type: Opaque
 data:
-  DB_PASSWORD: cGFzc3dvcmQ=           # "password"
-  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ"
+  DB_PASSWORD: cGFzc3dvcmQ=           # "password" en base64
+  API_KEY: bWFDbGVBUElzZWNyZXRlWFla   # "maCleAPIsecreteXYZ" en base64
 
 ---
 
-# --- 4. Deployment ---
+# --- 4. Deployment (Application + Database) ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -51,7 +51,7 @@ spec:
     metadata:
       labels:
         app: biblio
-        tier: backend    # Ajout du label tier: backend ici pour correspondre au service
+        tier: backend    # Ajout du label tier: backend pour correspondre au service
     spec:
       containers:
         - name: bibliom1
@@ -64,6 +64,20 @@ spec:
                 name: biblio-secrets
             - configMapRef:
                 name: biblio-config
+        - name: db
+          image: postgres:latest
+          env:
+            - name: POSTGRES_DB
+              value: "bibliotheque_iset"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: biblio-secrets
+                  key: DB_PASSWORD
+          ports:
+            - containerPort: 5432
 
 ---
 
@@ -74,12 +88,13 @@ metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: LoadBalancer  # Changer NodePort en LoadBalancer ici
+  type: LoadBalancer  # Type LoadBalancer pour exposer l'application en externe
   selector:
     app: biblio
-    tier: backend    # Le sélecteur ici doit correspondre aux labels du pod
   ports:
     - name: http
       port: 80
       targetPort: 8080
-      
+    - name: db
+      port: 5432
+      targetPort: 5432
