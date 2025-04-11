@@ -14,7 +14,7 @@ metadata:
   namespace: bibliotheque
 data:
   APP_ENV: "production"
-  DB_HOST: "localhost"
+  DB_HOST: "db-service"
   LOG_LEVEL: "debug"
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
