@@ -110,6 +110,8 @@ jobs:
       - name: 🔍 Vérifier le déploiement
         run: |
           kubectl get svc -n bibliotheque
+          kubectl get events -n bibliotheque
+          kubectl logs bibliom1-5d75f7fb75-8h4sq -n bibliotheque
 
 
       - name: 🔄 Rollback basique
