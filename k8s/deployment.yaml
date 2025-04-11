@@ -44,53 +44,30 @@ metadata:
   namespace: bibliotheque
 spec:
   replicas: 3
-  strategy:
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
   selector:
     matchLabels:
       app: biblio
-      tier: backend
+
   template:
     metadata:
       labels:
         app: biblio
-        tier: backend
     spec:
+      imagePullSecrets:
+        - name: local-image-pull
       containers:
         - name: bibliom1
           image: touatifadwa/bibliomicro1:latest
-          imagePullPolicy: Always
+          imagePullPolicy: IfNotPresent
           ports:
             - containerPort: 8080
-              name: app-port
           envFrom:
-            - configMapRef:
-                name: biblio-config
             - secretRef:
                 name: biblio-secrets
-          resources:
-            requests:
-              cpu: "800m"
-              memory: "512Mi"
-            limits:
-              cpu: "1500m"
-              memory: "1.5Gi"
-          livenessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 25
-            periodSeconds: 10
-            failureThreshold: 3
-          readinessProbe:
-            httpGet:
-              path: /health
-              port: 8080
-            initialDelaySeconds: 40
-            periodSeconds: 5
-            failureThreshold: 3
+
+            - configMapRef:
+                name: biblio-config
+
 
 ---
 
