@@ -68,18 +68,18 @@ spec:
 
 ---
 
-# --- 5. Service ---
 apiVersion: v1
 kind: Service
 metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: LoadBalancer  # Changer NodePort en LoadBalancer ici
+  type: NodePort  # Change LoadBalancer to NodePort
   selector:
     app: biblio
-    tier: backend    # Le sélecteur ici doit correspondre aux labels du pod
+    tier: backend
   ports:
     - name: http
       port: 80
       targetPort: 8080
+      nodePort: 30080  # Port sur le nœud

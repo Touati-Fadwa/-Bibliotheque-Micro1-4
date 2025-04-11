@@ -112,7 +112,9 @@ jobs:
           kubectl get namespaces
           kubectl get all -n bibliotheque
           kubectl get svc -n bibliotheque
-        
+          kubectl get pods -n bibliotheque
+          kubectl get svc db-service -n bibliotheque
+
           kubectl get events --all-namespaces
 
 
