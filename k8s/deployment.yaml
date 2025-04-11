@@ -53,8 +53,6 @@ spec:
       labels:
         app: biblio
     spec:
-      imagePullSecrets:
-        - name: local-image-pull
       containers:
         - name: bibliom1
           image: touatifadwa/bibliomicro1:latest
