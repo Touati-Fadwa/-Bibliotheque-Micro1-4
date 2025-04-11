@@ -83,3 +83,55 @@ spec:
       port: 80
       targetPort: 8080
       nodePort: 30080  # Port sur le nœud
+
+
+
+---
+
+# --- 5. PostgreSQL Deployment ---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: bibliotheque
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:15
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: "bibliotheque_iset"
+            - name: POSTGRES_USER
+              value: "postgres"
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: biblio-secrets
+                  key: DB_PASSWORD
+
+---
+
+# --- 6. PostgreSQL Service ---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db-service
+  namespace: bibliotheque
+spec:
+  selector:
+    app: postgres
+  ports:
+    - protocol: TCP
+      port: 5432
+      targetPort: 5432
