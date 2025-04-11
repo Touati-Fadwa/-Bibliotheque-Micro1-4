@@ -15,7 +15,6 @@ metadata:
 data:
   APP_ENV: "production"
   DB_HOST: "db-service.bibliotheque.svc.cluster.local"
-
   LOG_LEVEL: "debug"
   DB_USER: "postgres"
   DB_NAME: "bibliotheque_iset"
@@ -37,7 +36,7 @@ data:
 
 ---
 
-# --- 4. Deployment: Application Node.js ---
+# --- 4. Microservice Deployment avec initContainer ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -54,6 +53,10 @@ spec:
         app: biblio
         tier: backend
     spec:
+      initContainers:
+        - name: wait-for-postgres
+          image: busybox
+          command: ['sh', '-c', 'until nc -z db-service.bibliotheque.svc.cluster.local 5432; do echo "Waiting for db..."; sleep 2; done']
       containers:
         - name: bibliom1
           image: touatifadwa/bibliomicro1:latest
@@ -68,7 +71,7 @@ spec:
 
 ---
 
-# --- 5. Service: Application Node.js ---
+# --- 5. Microservice Service ---
 apiVersion: v1
 kind: Service
 metadata:
@@ -87,7 +90,7 @@ spec:
 
 ---
 
-# --- 6. Deployment: PostgreSQL ---
+# --- 6. PostgreSQL Deployment avec volume ---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -119,15 +122,15 @@ spec:
                   name: biblio-secrets
                   key: DB_PASSWORD
           volumeMounts:
-            - name: pgdata
-              mountPath: /var/lib/postgresql/data
+            - mountPath: /var/lib/postgresql/data
+              name: postgres-storage
       volumes:
-        - name: pgdata
-          emptyDir: {}
+        - name: postgres-storage
+          emptyDir: {}  # 📝 Pour test uniquement. Utilise un PersistentVolume pour production.
 
 ---
 
-# --- 7. Service: PostgreSQL ---
+# --- 7. PostgreSQL Service ---
 apiVersion: v1
 kind: Service
 metadata:
