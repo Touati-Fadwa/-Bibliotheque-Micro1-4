@@ -109,13 +109,27 @@ jobs:
 
       - name: 🔍 Vérifier le déploiement
         run: |
-          kubectl get namespaces
-          kubectl get all -n bibliotheque
-          kubectl get svc -n bibliotheque
-          kubectl get pods -n bibliotheque
-          kubectl get svc db-service -n bibliotheque
+          echo "🔍 Vérification du déploiement 'bibliom1'..."
+           kubectl get deploy bibliom1 -n bibliotheque
 
-          kubectl get events --all-namespaces
+          echo -e "\n🔁 Vérification des ReplicaSets..."
+           kubectl get rs -n bibliotheque -l app=biblio,tier=backend
+
+          echo -e "\n⏳ Attente de 50 secondes pour laisser le temps aux pods de démarrer..."
+           sleep 50
+
+           echo -e "\n📦 Vérification des Pods..."
+            kubectl get pods -n bibliotheque -l app=biblio,tier=backend
+
+           echo -e "\n📡 Vérification du service 'biblio-service'..."
+             kubectl get svc biblio-service -n bibliotheque
+
+           echo -e "\n📄 Logs du premier pod..."
+            POD=$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o jsonpath="{.items[0].metadata.name}")
+            kubectl logs -n bibliotheque "$POD" --tail=50
+
+           echo -e "\n🕒 Événements récents..."
+            kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
 
 
