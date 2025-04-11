@@ -145,7 +145,18 @@ jobs:
         run: |
           docker compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
 
-      
+      - name: Wait for Grafana to be ready
+        run: |
+          echo "⏳ Attente que Grafana soit prêt sur http://localhost:3000..."
+          for i in {1..20}; do
+            if curl -s http://localhost:3000/login | grep -q "Grafana"; then
+              echo "✅ Grafana est prêt"
+              break
+            fi
+            echo "Tentative $i : Grafana pas encore prêt. Attente de 5 secondes..."
+            sleep 5
+          done
+
          
       - name: Configurer Grafana pour se connecter à Prometheus
         run: |
@@ -168,7 +179,7 @@ jobs:
       - name: Vérifier l'accès à Prometheus
         run: |
           curl -sSf http://localhost:9090/metrics  # Vérifie si Prometheus répond aux requêtes
-          
+
 
       - name: Vérifier l'accès à Grafana
         run: |
