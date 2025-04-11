@@ -166,6 +166,18 @@ jobs:
               --data @grafana_datasource.json \
               http://localhost:3000/api/datasources
         
+              
+      - name: Importer le Dashboard Grafana
+        run: |
+                RESPONSE=$(curl -s -X POST \
+                  -H "Content-Type: application/json" \
+                  -u "admin:admin" \
+                  --data @grafana_dashboard.json \
+                  http://localhost:3000/api/dashboards/db)
+            
+                echo "📊 Réponse Grafana : $RESPONSE"
+            
+
 
       - name: 🔎 Vérifier que le dashboard a été importé
         run: |
