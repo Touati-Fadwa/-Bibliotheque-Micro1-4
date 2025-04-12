@@ -12,7 +12,6 @@ env:
   PROMETHEUS_URL: http://localhost:9090
   DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
   KUBECONFIG: ${{ github.workspace }}/kubeconfig
-  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 jobs:
   build:
@@ -49,6 +48,7 @@ jobs:
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
           SONAR_FORCE_AUTHENTICATION: "false"
+          SONAR_WEB_JVM_OPTS: "-Djava.awt.headless=true"
           SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
 
     steps:
@@ -62,34 +62,29 @@ jobs:
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
 
-      - name: Wait for SonarQube to be ready and generate token
+      - name: Wait for SonarQube to be ready and run scan
         run: |
           echo "⏳ Attente du démarrage de SonarQube..."
           until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
-            sleep 2
+            sleep 5
           done
           echo "✅ SonarQube prêt"
 
+          echo "🔐 Génération du token SonarQube..."
           TOKEN=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
             "$SONAR_HOST_URL/api/user_tokens/generate" \
-            -d "name=CI_TOKEN" \
+            -d "name=CI_TOKEN_$(date +%s)" \
             -d "type=GLOBAL_ANALYSIS_TOKEN" | jq -r '.token')
 
-          echo "SONAR_TOKEN=$TOKEN" >> $GITHUB_ENV
+          echo "✅ Token généré"
 
-          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-            "$SONAR_HOST_URL/api/permissions/add_group" \
-            -d "groupName=Anyone" \
-            -d "permission=scan"
+          npm install -g sonarqube-scanner
 
-      - name: Analyse SonarQube
-        run: |
-          npm install -g sonarqube-scanner --quiet
           sonar-scanner \
             -Dsonar.projectKey="BIBLIO_MAIN" \
             -Dsonar.projectName="Bibliotheque" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.token="$TOKEN" \
             -Dsonar.sources=src \
             -Dsonar.tests=tests \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
