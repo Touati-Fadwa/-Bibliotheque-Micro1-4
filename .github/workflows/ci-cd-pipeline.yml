@@ -10,6 +10,7 @@ env:
   SONAR_PROJECT_KEY: BIBLIO_MAIN
   SONAR_PROJECT_NAME: Bibliotheque
   SONAR_HOST_URL: http://localhost:9000
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
   GRAFANA_URL: http://localhost:3000
   PROMETHEUS_URL: http://localhost:9090
   DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
