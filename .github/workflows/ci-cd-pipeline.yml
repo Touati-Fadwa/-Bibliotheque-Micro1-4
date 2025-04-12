@@ -39,6 +39,7 @@ jobs:
   tests:
     name: 🧪 Tests + Qualité
     runs-on: ubuntu-latest
+    needs: build
     timeout-minutes: 60
 
     services:
