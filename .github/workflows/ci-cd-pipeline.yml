@@ -1,4 +1,4 @@
-name: CI/CD avec qualité, déploiement et rollback
+name: CI/CD avec qualité, déploiement, rollback et monitoring
 
 on:
   push:
@@ -6,10 +6,42 @@ on:
   pull_request:
     branches: [main]
 
+env:
+  SONAR_HOST_URL: http://localhost:9000
+  GRAFANA_URL: http://localhost:3000
+  PROMETHEUS_URL: http://localhost:9090
+  DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
+  KUBECONFIG: ${{ github.workspace }}/kubeconfig
+
+### JOB 1 - BUILD (Docker image & push)
 jobs:
-  quality-check:
+  build:
+    name: 🏗️ Build
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Docker image
+        run: docker build -t $DOCKER_IMAGE .
+
+      - name: Push Docker image
+        env:
+          DOCKER_USERNAME: touatifadwa
+          DOCKER_PASSWORD: foufou53550880
+        run: |
+          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
+          docker push $DOCKER_IMAGE
+
+### JOB 2 - TESTS (après build)
+  tests:
+    name: 🧪 Tests + Qualité
+    runs-on: ubuntu-latest
+    needs: build
 
     services:
       sonarqube:
@@ -18,36 +50,20 @@ jobs:
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
           SONAR_FORCE_AUTHENTICATION: "false"
-        options: >-
-          --memory 4g
-          --cpus 2
-      k3s:
-        image: rancher/k3s:latest
-        ports:
-          - 6443:6443
+          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
 
     steps:
-      - name: 🔧 Installer jq
-        run: sudo apt-get install -y jq
+      - uses: actions/checkout@v4
 
-      - name: 🛎️ Checkout du code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: 📦 Installer les dépendances
+      - name: Install dependencies
         run: npm install
 
-      - name: 🧪 Exécuter les tests
+      - name: Run tests and collect coverage
         run: |
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
 
-      - name: ⚙️ Configurer SonarQube
-        id: sonarqube-setup
-        env:
-          SONAR_HOST_URL: "http://localhost:9000"
-          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
+      - name: Setup and run SonarQube analysis
         run: |
           echo "⏳ Attente du démarrage de SonarQube..."
           until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
@@ -67,11 +83,8 @@ jobs:
             -d "groupName=Anyone" \
             -d "permission=scan"
 
-      - name: 🔍 Analyser avec SonarQube
-        env:
-          SONAR_HOST_URL: "http://localhost:9000"
-        run: |
-          npm install -g sonarqube-scanner --quiet
+
+            npm install -g sonarqube-scanner --quiet
           sonar-scanner \
             -Dsonar.projectKey="BIBLIO_MAIN" \
             -Dsonar.projectName="Bibliotheque" \
@@ -81,18 +94,22 @@ jobs:
             -Dsonar.tests=tests \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
 
-      - name: 🐳 Construire l'image Docker
-        run: docker build -t touatifadwa/bibliomicro1:latest .
+### JOB 3 - DEPLOY (sur cluster K3s local)
+  deploy:
+    name: 🚀 Deploy
+    runs-on: ubuntu-latest
+    needs: tests
 
-      - name: ⬆️ Pousser l'image Docker
-        env:
-          DOCKER_USERNAME: touatifadwa
-          DOCKER_PASSWORD: foufou53550880
-        run: |
-          echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
-          docker push touatifadwa/bibliomicro1:latest
+    services:
+      k3s:
+        image: rancher/k3s:latest
+        ports:
+          - 6443:6443
 
-      - name: 🚀 Installer et configurer k3s
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install k3s
         run: |
           curl -sfL https://get.k3s.io | \
             INSTALL_K3S_EXEC="--docker --disable=traefik --write-kubeconfig-mode 644" \
@@ -101,53 +118,40 @@ jobs:
           chmod 644 kubeconfig
           echo "KUBECONFIG=${PWD}/kubeconfig" >> $GITHUB_ENV
 
-      - name: ✅ Vérification rapide
-        run: kubectl get nodes
-
-      - name: 🛠️ Déployer
+      - name: Apply Kubernetes manifests
         run: kubectl apply -f k8s/
 
-      - name: 🔍 Vérifier le déploiement
+      - name: Verify deployment
         run: |
-          echo "🔍 Vérification du déploiement 'bibliom1'..."
-           kubectl get deploy bibliom1 -n bibliotheque
+          sleep 30
+          kubectl get pods -n bibliotheque
+          kubectl get svc -n bibliotheque
 
-          echo -e "\n🔁 Vérification des ReplicaSets..."
-           kubectl get rs -n bibliotheque -l app=biblio,tier=backend
+### JOB 4 - ROLLBACK (si échec du job deploy)
+  rollback:
+    name: 🔄 Rollback if failure
+    runs-on: ubuntu-latest
+    if: failure()
+    needs: deploy
 
-          echo -e "\n⏳ Attente de 50 secondes pour laisser le temps aux pods de démarrer..."
-           sleep 50
-
-           echo -e "\n📦 Vérification des Pods..."
-            kubectl get pods -n bibliotheque -l app=biblio,tier=backend
-
-           echo -e "\n📡 Vérification du service 'biblio-service'..."
-             kubectl get svc biblio-service -n bibliotheque
-
-           echo -e "\n📄 Logs du premier pod..."
-            POD=$(kubectl get pods -n bibliotheque -l app=biblio,tier=backend -o jsonpath="{.items[0].metadata.name}")
-            kubectl logs -n bibliotheque "$POD" --tail=50
-
-           echo -e "\n🕒 Événements récents..."
-            kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
-
-
-
-      - name: 🔄 Rollback basique
-        if: failure()
+    steps:
+      - name: Rollback Kubernetes deployment
         run: |
-            kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
-            exit 1
+          kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
 
-      - name: ✉️ Déclencher l'email de notification GitHub
-        if: failure()
-        run: |
-          echo "::warning::Échec du workflow - Un email a été envoyé par GitHub"
+### JOB 5 - MONITORING (Prometheus & Grafana)
+  monitoring:
+    name: 📊 Monitoring
+    runs-on: ubuntu-latest
+    needs: deploy
 
+    steps:
+      - uses: actions/checkout@v4
 
-      - name: Démarrer Prometheus et Grafana avec Docker Compose
-        run: |
-          docker compose -f docker-compose.yml up -d  # Démarre Prometheus et Grafana
+      - name: Launch Prometheus & Grafana
+        run: docker compose -f docker-compose.yml up -d
+
+      
 
       - name: Wait for Grafana to be ready
         run: |
