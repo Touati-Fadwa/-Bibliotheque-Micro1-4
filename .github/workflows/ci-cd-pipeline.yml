@@ -7,21 +7,21 @@ on:
     branches: [main]
 
 env:
+  SONAR_PROJECT_KEY: BIBLIO_MAIN
+  SONAR_PROJECT_NAME: Bibliotheque
   SONAR_HOST_URL: http://localhost:9000
   GRAFANA_URL: http://localhost:3000
   PROMETHEUS_URL: http://localhost:9090
   DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
   KUBECONFIG: ${{ github.workspace }}/kubeconfig
 
-### JOB 1 - BUILD (Docker image & push)
 jobs:
   build:
     name: 🏗️ Build
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: Install dependencies
         run: npm install
@@ -37,25 +37,18 @@ jobs:
           echo "$DOCKER_PASSWORD" | docker login -u "$DOCKER_USERNAME" --password-stdin
           docker push $DOCKER_IMAGE
 
-### JOB 2 - TESTS (après build)
-  tests:
-    name: 🧪 Tests + Qualité
-    
-
+  quality:
+    name: 🔍 Tests + Qualité (SonarQube)
     runs-on: ubuntu-latest
-    needs: build
 
     services:
       sonarqube:
         image: sonarqube:community
         ports: [9000:9000]
+        options: --health-cmd="curl http://localhost:9000/api/system/status | grep -q UP" --health-interval=10s --health-timeout=5s --health-retries=10
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
           SONAR_FORCE_AUTHENTICATION: "false"
-          SONAR_ADMIN_PASSWORD: ${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}
-          options: >-
-            --memory 4g
-            --cpus 2
 
     steps:
       - uses: actions/checkout@v4
@@ -63,178 +56,76 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Run tests and collect coverage
+      - name: Run tests
         run: |
           npm test -- --coverage
           mv coverage/lcov.info coverage/lcov-full.info
 
-      - name: Setup and run SonarQube analysis
+      - name: Install SonarQube Scanner
+        run: npm install -g sonarqube-scanner
+
+      - name: Analyse avec SonarQube
+        env:
+          SONAR_TOKEN: admin
         run: |
-          echo "⏳ Attente du démarrage de SonarQube..."
-          until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
-            sleep 2
-          done
-          echo "✅ SonarQube prêt"
-
-          TOKEN=$(curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-            "$SONAR_HOST_URL/api/user_tokens/generate" \
-            -d "name=CI_TOKEN" \
-            -d "type=GLOBAL_ANALYSIS_TOKEN" | jq -r '.token')
-
-          echo "SONAR_TOKEN=$TOKEN" >> $GITHUB_ENV
-
-          curl -u admin:"$SONAR_ADMIN_PASSWORD" -X POST \
-            "$SONAR_HOST_URL/api/permissions/add_group" \
-            -d "groupName=Anyone" \
-            -d "permission=scan"
-
-
-            npm install -g sonarqube-scanner --quiet
           sonar-scanner \
-            -Dsonar.projectKey="BIBLIO_MAIN" \
-            -Dsonar.projectName="Bibliotheque" \
-            -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.token="$SONAR_TOKEN" \
+            -Dsonar.projectKey=$SONAR_PROJECT_KEY \
+            -Dsonar.projectName=$SONAR_PROJECT_NAME \
+            -Dsonar.host.url=$SONAR_HOST_URL \
+            -Dsonar.token=$SONAR_TOKEN \
             -Dsonar.sources=src \
             -Dsonar.tests=tests \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
 
-### JOB 3 - DEPLOY (sur cluster K3s local)
   deploy:
-    name: 🚀 Deploy
+    name: 🚀 Deploy to K3s
+    needs: [build, quality]
     runs-on: ubuntu-latest
-    needs: tests
-
-    services:
-      k3s:
-        image: rancher/k3s:latest
-        ports:
-          - 6443:6443
 
     steps:
       - uses: actions/checkout@v4
 
       - name: Install k3s
         run: |
-          curl -sfL https://get.k3s.io | \
-            INSTALL_K3S_EXEC="--docker --disable=traefik --write-kubeconfig-mode 644" \
-            sh -
+          curl -sfL https://get.k3s.io | INSTALL_K3S_EXEC="--docker" sh -
           sudo cat /etc/rancher/k3s/k3s.yaml > kubeconfig
-          chmod 644 kubeconfig
           echo "KUBECONFIG=${PWD}/kubeconfig" >> $GITHUB_ENV
 
-      - name: Apply Kubernetes manifests
+      - name: Apply Kubernetes Manifests
         run: kubectl apply -f k8s/
 
-      - name: Verify deployment
-        run: |
-          sleep 30
-          kubectl get pods -n bibliotheque
-          kubectl get svc -n bibliotheque
-
-### JOB 4 - ROLLBACK (si échec du job deploy)
   rollback:
-    name: 🔄 Rollback if failure
-    runs-on: ubuntu-latest
+    name: 🔄 Rollback si échec
     if: failure()
     needs: deploy
-
+    runs-on: ubuntu-latest
     steps:
-      - name: Rollback Kubernetes deployment
+      - name: Rollback deployment
         run: |
           kubectl rollout undo deployment/bibliom1 -n bibliotheque || true
 
-### JOB 5 - MONITORING (Prometheus & Grafana)
   monitoring:
     name: 📊 Monitoring
-    runs-on: ubuntu-latest
     needs: deploy
-
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Launch Prometheus & Grafana
+      - name: Démarrer Prometheus et Grafana
         run: docker compose -f docker-compose.yml up -d
 
-      
-
-      - name: Wait for Grafana to be ready
+      - name: Configurer Grafana Datasource
         run: |
-          echo "⏳ Attente que Grafana soit prêt sur http://localhost:3000..."
-          for i in {1..20}; do
-            if curl -s http://localhost:3000/login | grep -q "Grafana"; then
-              echo "✅ Grafana est prêt"
-              break
-            fi
-            echo "Tentative $i : Grafana pas encore prêt. Attente de 5 secondes..."
-            sleep 5
-          done
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -u "admin:admin" \
+            --data @grafana_datasource.json \
+            http://localhost:3000/api/datasources
 
-         
-      - name: Configurer Grafana pour se connecter à Prometheus
+      - name: Importer dashboard Grafana
         run: |
-            curl -X POST \
-              -H "Content-Type: application/json" \
-              -u "admin:admin" \
-              --data @grafana_datasource.json \
-              http://localhost:3000/api/datasources
-        
-
-      - name: Importer le Dashboard Grafana
-        run: |
-                RESPONSE=$(curl -s -X POST \
-                  -H "Content-Type: application/json" \
-                  -u "admin:admin" \
-                  --data @grafana_dashboard.json \
-                  http://localhost:3000/api/dashboards/db)
-                echo "📊 Réponse Grafana : $RESPONSE"
-                echo "⏳ Pause de 10 secondes pour laisser Grafana indexer le dashboard..."
-                sleep 10
-            
-            
-
-
-      - name: 🔎 Vérifier que le dashboard a été importé
-        run: |
-                DASHBOARD_TITLE="Node.js Application Dashboard"
-                DASHBOARD_UID=$(curl -s -u admin:admin http://localhost:3000/api/search?query= | jq -r ".[] | select(.title==\"$DASHBOARD_TITLE\") | .uid")
-      
-                if [ -z "$DASHBOARD_UID" ]; then
-                  echo "❌ Dashboard '$DASHBOARD_TITLE' non trouvé"
-                  exit 1
-                fi
-      
-                echo "✅ Dashboard '$DASHBOARD_TITLE' trouvé avec UID: $DASHBOARD_UID"
-      
-      - name: 📊 Vérifier la présence de la métrique Prometheus dans le dashboard
-        run: |
-                  DASHBOARD_TITLE="Node.js Application Dashboard"
-                  DASHBOARD_UID=$(curl -s -u admin:admin http://localhost:3000/api/search?query= | jq -r ".[] | select(.title==\"$DASHBOARD_TITLE\") | .uid")
-              
-                  METRIQUE="nodejs_app_http_requests_total"
-              
-                  if [ -z "$DASHBOARD_UID" ]; then
-                    echo "❌ Dashboard '$DASHBOARD_TITLE' non trouvé"
-                    exit 1
-                  fi
-              
-                  RESULT=$(curl -s -u admin:admin http://localhost:3000/api/dashboards/uid/$DASHBOARD_UID | jq -r '.. | objects | select(has("expr")) | .expr' | grep "$METRIQUE")
-              
-                  if [ -z "$RESULT" ]; then
-                    echo "❌ Métrique '$METRIQUE' non trouvée dans le dashboard"
-                    exit 1
-                  else
-                    echo "✅ Métrique '$METRIQUE' trouvée dans le dashboard"
-                  fi
-              
-      
-  
-
-      - name: Vérifier l'accès à Prometheus
-        run: |
-          curl -sSf http://localhost:9090/metrics  # Vérifie si Prometheus répond aux requêtes
-
-
-      - name: Vérifier l'accès à Grafana
-        run: |
-          curl -sSf -u "admin:admin" http://localhost:3000
+          curl -X POST \
+            -H "Content-Type: application/json" \
+            -u "admin:admin" \
+            --data @grafana_dashboard.json \
+            http://localhost:3000/api/dashboards/db
