@@ -47,15 +47,22 @@ jobs:
         ports: [9000:9000]
         env:
           SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
-          SONAR_FORCE_AUTHENTICATION: "false"  # Désactive l'authentification
+          SONAR_FORCE_AUTHENTICATION: "false"
           SONAR_WEB_JVM_OPTS: "-Djava.awt.headless=true"
-          SONAR_ADMIN_PASSWORD: admin  # Mot de passe simple pour les tests
+          SONAR_ADMIN_PASSWORD: admin
 
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
       - name: Install dependencies
-        run: npm install
+        run: |
+          npm install
+          npm install -g sonarqube-scanner
 
       - name: Run tests and collect coverage
         run: |
@@ -64,16 +71,26 @@ jobs:
 
       - name: Wait for SonarQube to be ready
         run: |
-          echo "⏳ Attente du démarrage de SonarQube..."
-          until curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; do
+          echo "⏳ Waiting for SonarQube to start..."
+          for i in {1..30}; do
+            if curl -sSf "$SONAR_HOST_URL/api/system/status" | grep -q '"status":"UP"'; then
+              echo "✅ SonarQube is ready"
+              break
+            fi
+            echo "Attempt $i/30: SonarQube not ready yet. Waiting 5 seconds..."
             sleep 5
           done
-          echo "✅ SonarQube prêt"
+
+      - name: Configure SonarQube
+        run: |
+          # Create a project if it doesn't exist
+          curl -u admin:admin -X POST "$SONAR_HOST_URL/api/projects/create" \
+            -d "project=BIBLIO_MAIN" \
+            -d "name=Bibliotheque" || true
 
       - name: Run SonarQube Scan
         run: |
-          # Solution alternative avec npx pour éviter les problèmes d'installation globale
-          npx sonarqube-scanner \
+          sonar-scanner \
             -Dsonar.projectKey="BIBLIO_MAIN" \
             -Dsonar.projectName="Bibliotheque" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
@@ -81,6 +98,7 @@ jobs:
             -Dsonar.password="admin" \
             -Dsonar.sources=src \
             -Dsonar.tests=tests \
-            -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
+            -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info \
+            -Dsonar.scm.disabled=true
 
-  # [RESTE DU FICHIER INCHANGÉ...]
+  # [Le reste du fichier reste inchangé...]
