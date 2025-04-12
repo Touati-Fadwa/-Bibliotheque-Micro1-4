@@ -12,6 +12,7 @@ env:
   PROMETHEUS_URL: http://localhost:9090
   DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
   KUBECONFIG: ${{ github.workspace }}/kubeconfig
+  SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
 
 ### JOB 1 - BUILD (Docker image & push)
 jobs:
