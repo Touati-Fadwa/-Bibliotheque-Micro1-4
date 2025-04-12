@@ -70,10 +70,10 @@ jobs:
           done
           echo "✅ SonarQube prêt"
 
-          # Utilise le mot de passe de l'admin SonarQube directement pour l'authentification
+          # Configurer les permissions
           curl -u admin:"${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}" -X POST \
-            "$SONAR_HOST_URL/api/permissions/add_group" \
-            -d "groupName=Anyone" \
+            "$SONAR_HOST_URL/api/permissions/add_user" \
+            -d "login=admin" \
             -d "permission=scan"
 
           # Installer sonar-scanner
@@ -82,7 +82,7 @@ jobs:
             -Dsonar.projectKey="BIBLIO_MAIN" \
             -Dsonar.projectName="Bibliotheque" \
             -Dsonar.host.url="$SONAR_HOST_URL" \
-            -Dsonar.login="${{ secrets.SONAR_ADMIN_PASSWORD || 'admin' }}" \
+            -Dsonar.token="${{ secrets.SONAR_TOKEN || 'admin' }}" \
             -Dsonar.sources=src \
             -Dsonar.tests=tests \
             -Dsonar.javascript.lcov.reportPaths=coverage/lcov-full.info
