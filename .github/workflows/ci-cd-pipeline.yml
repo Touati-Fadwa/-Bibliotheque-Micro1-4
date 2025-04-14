@@ -158,22 +158,29 @@ jobs:
 
       - name: 🔍 Vérification de l'endpoint /salutation
         run: |
-          echo "⏳ Attente que le service soit prêt..."
-          for i in {1..10}; do
-          STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:30080/salutation)
-          if [ "$STATUS" = "200" ]; then
-          echo "✅ Service accessible à http://localhost:30080/salutation"
-          curl http://localhost:30080/salutation
-          exit 0
-          fi
-          echo "⏳ Tentative $i/10... pas encore prêt (code $STATUS)"
-          sleep 5
-          done
-          echo "❌ Échec : le service /salutation n’est pas accessible"
-          exit 1
-
-
-          - name: 🔍 Vérification de l'endpoint /salutation
+            echo "⏳ Attente que le service soit prêt..."
+            for i in {1..10}; do
+              STATUS=$(curl -s -o /dev/null -w "%{http_code}" http://<IP-PUBLIQUE>:30080/salutation)
+              if [ "$STATUS" = "200" ]; then
+                echo "✅ Service accessible à http://<IP-PUBLIQUE>:30080/salutation"
+                curl http://<IP-PUBLIQUE>:30080/salutation
+                exit 0
+              fi
+              echo "⏳ Tentative $i/10... pas encore prêt (code $STATUS)"
+              sleep 5
+            done
+            echo "❌ Échec : le service /salutation n’est pas accessible"
+            exit 1
+        shell: /usr/bin/bash -e {0}
+          
+        env:
+            SONAR_HOST_URL: http://localhost:9000
+            GRAFANA_URL: http://localhost:3000
+            PROMETHEUS_URL: http://localhost:9090
+            DOCKER_IMAGE: touatifadwa/bibliomicro1:latest
+            KUBECONFIG: /home/runner/work/-Bibliotheque-Micro1-4/-Bibliotheque-Micro1-4/kubeconfig
+        
+     
   
 
 
