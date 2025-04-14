@@ -159,6 +159,7 @@ jobs:
       - name: 🔍 Vérification de l'endpoint /salutation
         run: |
            kubectl get nodes -o wide
+           curl http://10.1.0.208:30080/salutation
 
 
             
