@@ -160,8 +160,6 @@ jobs:
               name: l2-advert
             EOF
         
-
-
         
       - name: Apply Kubernetes manifests
         run: kubectl apply -f k8s/
