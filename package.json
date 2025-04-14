@@ -106,8 +106,15 @@
   },
   "jest": {
     "testEnvironment": "node",
+    "transform": {
+      "^.+\\.[tj]sx?$": "babel-jest"
+    },
+    "transformIgnorePatterns": [
+      "/node_modules/(?!module-to-transform)/"
+    ],
     "moduleNameMapper": {
-      "^(\\.{1,2}/.*)\\.js$": "$1"
+      "^(\\.{1,2}/.*)\\.js$": "$1",
+      "^src/(.*)$": "<rootDir>/src/$1"
     },
     "globals": {
       "JWT_SECRET": "test-secret-123"
