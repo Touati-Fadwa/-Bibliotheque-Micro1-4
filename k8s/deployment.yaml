@@ -78,7 +78,7 @@ metadata:
   name: biblio-service
   namespace: bibliotheque
 spec:
-  type: NodePort
+  type: LoadBalancer
   selector:
     app: biblio
     tier: backend
@@ -86,7 +86,6 @@ spec:
     - name: http
       port: 80
       targetPort: 8080
-      nodePort: 30080
 
 ---
 

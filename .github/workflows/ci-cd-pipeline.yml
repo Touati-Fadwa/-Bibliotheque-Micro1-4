@@ -131,6 +131,36 @@ jobs:
           chmod 644 kubeconfig
           echo "KUBECONFIG=${PWD}/kubeconfig" >> $GITHUB_ENV
 
+
+      - name: Installer MetalLB
+        run: |
+          echo "📦 Installation de MetalLB..."
+          
+          kubectl apply -f https://raw.githubusercontent.com/metallb/metallb/v0.13.12/config/manifests/metallb-native.yaml
+
+          echo "⏳ Attente que MetalLB soit prêt..."
+          kubectl wait --namespace metallb-system --for=condition=Available deployment/controller --timeout=90s
+          kubectl wait --namespace metallb-system --for=condition=Available daemonset/speaker --timeout=90s
+
+          echo "⚙️ Configuration de l'adresse IP pool MetalLB..."
+          cat <<EOF | kubectl apply -f -
+          apiVersion: metallb.io/v1beta1
+          kind: IPAddressPool
+          metadata:
+            namespace: metallb-system
+            name: my-ip-pool
+          spec:
+            addresses:
+            - 192.168.0.240-192.168.0.250
+          ---
+          apiVersion: metallb.io/v1beta1
+          kind: L2Advertisement
+          metadata:
+            namespace: metallb-system
+            name: l2-advert
+          EOF
+
+
       - name: Apply Kubernetes manifests
         run: kubectl apply -f k8s/
 
@@ -155,9 +185,6 @@ jobs:
 
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
-
-     
-
       
   rollback:
     name: 🔄 Rollback if failure
