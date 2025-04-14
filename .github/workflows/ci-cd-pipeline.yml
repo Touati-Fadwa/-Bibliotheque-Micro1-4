@@ -187,6 +187,10 @@ jobs:
 
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
+
+
+          curl http://192.168.1.100/
+
       
   rollback:
     name: 🔄 Rollback if failure
