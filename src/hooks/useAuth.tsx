@@ -4,6 +4,8 @@ import { User, UserRole } from '../lib/types';
 import { adminUser, studentUsers } from '../lib/mockData';
 import { useToast } from '../hooks/use-toast';
 
+
+
 interface AuthContextType {
   user: User | null;
   loading: boolean;
