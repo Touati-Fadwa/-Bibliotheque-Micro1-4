@@ -1,5 +1,5 @@
 // src/lib/mockData.js
-export const adminUser = {
+const adminUser = {
   id: "admin-1",
   username: "admin",
   password: "admin123",
@@ -11,7 +11,7 @@ export const adminUser = {
   createdAt: new Date()
 };
 
-export const studentUsers = [
+const studentUsers = [
   {
     id: "student-1",
     username: "etudiant1",
@@ -38,7 +38,7 @@ export const studentUsers = [
   }
 ];
 
-export const books = [
+const books = [
   {
     id: "book-1",
     title: "Introduction à React",
@@ -59,7 +59,7 @@ export const books = [
   }
 ];
 
-export const borrowedBooks = [
+const borrowedBooks = [
   {
     id: "borrowed-1",
     bookId: "book-2",
@@ -68,3 +68,10 @@ export const borrowedBooks = [
     returnDate: null
   }
 ];
+
+module.exports = {
+  adminUser,
+  studentUsers,
+  books,
+  borrowedBooks
+};

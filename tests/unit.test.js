@@ -2,7 +2,8 @@
 const bcrypt = require('bcrypt'); // Pour le hachage des mots de passe
 const jwt = require('jsonwebtoken'); // Pour la génération de tokens JWT
 const { pool } = require('../back/server.js'); // Import de la connexion pool (sera mocké)
-const { adminUser } = require('../src/lib/mockData'); // Données mockées de l'admin
+const { adminUser, studentUsers, books, borrowedBooks } = require('../src/lib/mockData');
+
 
 /**
  * Mock de server.js pour isoler les tests
