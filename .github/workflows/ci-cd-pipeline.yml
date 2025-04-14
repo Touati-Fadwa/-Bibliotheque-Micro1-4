@@ -140,9 +140,7 @@ jobs:
         
             echo "⏳ Attente que MetalLB soit prêt..."
             kubectl wait --namespace metallb-system --for=condition=Available deployment/controller --timeout=90s
-        
-            # 👉 Remplace daemonset/speaker par --all car speaker n'a pas de condition Available
-            kubectl wait --namespace metallb-system --for=condition=Ready pod --selector=app=speaker --timeout=90s
+            kubectl wait --namespace metallb-system --for=condition=Ready pods --all --timeout=90s
         
             echo "⚙️ Configuration de l'adresse IP pool MetalLB..."
             cat <<EOF | kubectl apply -f -
@@ -161,8 +159,9 @@ jobs:
               namespace: metallb-system
               name: l2-advert
             EOF
+        
 
-            
+
         
       - name: Apply Kubernetes manifests
         run: kubectl apply -f k8s/
