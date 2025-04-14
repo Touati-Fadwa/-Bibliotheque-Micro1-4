@@ -156,17 +156,9 @@ jobs:
           echo "📅 Événements récents..."
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
-      - name: 🔍 Vérification de l'endpoint /salutation
-        run: |
-           kubectl get nodes -o wide
-           curl http://10.1.0.208:30080/salutation
-
-
-            
      
-  
 
-
+      
   rollback:
     name: 🔄 Rollback if failure
     runs-on: ubuntu-latest
