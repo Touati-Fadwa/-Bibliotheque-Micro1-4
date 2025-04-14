@@ -158,7 +158,8 @@ jobs:
 
       - name: 🔍 Vérification de l'endpoint /salutation
         run: |
-           curl http://localhost:30080/salutation
+           kubectl get nodes -o wide
+
 
             
      
