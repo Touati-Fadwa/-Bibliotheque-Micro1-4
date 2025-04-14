@@ -151,7 +151,7 @@ jobs:
               name: my-ip-pool
             spec:
               addresses:
-              - 192.168.1.200-192.168.1.250
+              - 192.168.1.100-192.168.1.110
             ---
             apiVersion: metallb.io/v1beta1
             kind: L2Advertisement
@@ -189,8 +189,7 @@ jobs:
           kubectl get events -n bibliotheque --sort-by='.lastTimestamp'
 
 
-          curl http://192.168.1.100/
-
+          
       
   rollback:
     name: 🔄 Rollback if failure
