@@ -109,9 +109,6 @@
     "transform": {
       "^.+\\.[tj]sx?$": "babel-jest"
     },
-    "transformIgnorePatterns": [
-      "/node_modules/(?!module-to-transform)/"
-    ],
     "moduleNameMapper": {
       "^(\\.{1,2}/.*)\\.js$": "$1",
       "^src/(.*)$": "<rootDir>/src/$1"
