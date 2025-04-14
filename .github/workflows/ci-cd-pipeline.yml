@@ -136,7 +136,7 @@ jobs:
 
       - name: Verify deployment
         run: |
-          secho "🔍 Vérification du déploiement 'bibliom1'..."
+          echo "🔍 Vérification du déploiement 'bibliom1'..."
           kubectl get deploy bibliom1 -n bibliotheque
 
           echo "🔁 Vérification des ReplicaSets..."
