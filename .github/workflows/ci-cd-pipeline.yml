@@ -239,8 +239,8 @@ jobs:
             --data @grafana_dashboard.json \
             http://localhost:3000/api/dashboards/db)
           echo "📊 Réponse Grafana : $RESPONSE"
-          echo "⏳ Pause de 10 secondes pour laisser Grafana indexer le dashboard..."
-          sleep 10
+          echo "⏳ Pause de 15 secondes pour laisser Grafana indexer le dashboard..."
+          sleep 15
 
       - name: 🔎 Vérifier que le dashboard a été importé
         run: |
