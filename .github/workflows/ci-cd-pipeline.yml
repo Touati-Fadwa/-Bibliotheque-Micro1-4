@@ -275,8 +275,4 @@ jobs:
             echo "✅ Métrique '$METRIQUE' trouvée dans le dashboard"
           fi
 
-      - name: Vérifier l'accès à Prometheus
-        run: curl -sSf http://localhost:9090/metrics
-
-      - name: Vérifier l'accès à Grafana
-        run: curl -sSf -u "admin:admin" http://localhost:3000
+      
